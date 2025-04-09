@@ -8,6 +8,8 @@ class MouseMacro:
         self.root = root
         self.root.title("Simple Macro")
 
+        self.recordedEvents = []
+
         #LEFT rightFrame
         self.rightFrame = tk.Frame(root)
         self.rightFrame.grid(row=0,column=0, sticky="nsew")
@@ -55,7 +57,7 @@ class MouseMacro:
         """ recordLabel = tk.Label(leftFrame,text="Record",bg="white",fg="blue",relief="solid",borderwidth=2)
         recordLabel.grid(row=2,column=0) """
 
-        self.record = tk.Button(self.leftFrame,text="Start Recording",command=self.recordBtn)
+        self.record = tk.Button(self.leftFrame,text="Start Recording",command=self.recordEvent)
         self.record.grid(row=3,column=0)
 
         #STOP
@@ -86,7 +88,7 @@ class MouseMacro:
     def clearList(self):
         self.eventList.delete(0,tk.END)
 
-    def recordBtn():
+    def recordEvent():
         ...
 
 
