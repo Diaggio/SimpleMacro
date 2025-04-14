@@ -13,10 +13,15 @@ class MouseMacro:
         self.recordedEvents = []
         self.mouseControl = mouse.Controller()
 
-        self.mousePosQueue = queue.Queue()
-        self.listener = None
+        self.mouseQueue = queue.Queue()
+        self.mouseListener = None
 
-        #LEFT rightFrame
+        self.keyboardListener = None
+
+        self.recording = False
+        self.macroRunning = False
+
+        #LEFT Frame
         self.leftFrame = tk.Frame(root)
         self.leftFrame.grid(row=0,column=0, sticky="nsew")
         self.leftFrame.columnconfigure(0,weight=1)
@@ -37,7 +42,7 @@ class MouseMacro:
         self.clear = tk.Button(self.leftFrame,text="Clear",command=self.clearList)
         self.clear.grid(row=2,column=1)
 
-        # RIGHT rightFrame
+        # RIGHT Frame
         self.rightFrame = tk.Frame(root,borderwidth=1,relief="solid")
         self.rightFrame.grid(row=0,column=1, sticky="nsew")
         self.rightFrame.config(highlightbackground="red",highlightthickness=2)
@@ -60,18 +65,9 @@ class MouseMacro:
 
         #RECORD
 
-        """ recordLabel = tk.Label(leftFrame,text="Record",bg="white",fg="blue",relief="solid",borderwidth=2)
-        recordLabel.grid(row=2,column=0) """
+        self.record = tk.Button(self.rightFrame,text="Start Recording",command=self.recordingStatus)
+        self.record.grid(row=3,column=0, columnspan=2)
 
-        self.record = tk.Button(self.rightFrame,text="Start Recording",command=self.recordEvent)
-        self.record.grid(row=3,column=0)
-
-        #STOP
-        """ stopLabel = tk.Label(leftFrame,text="Stop")
-        stopLabel.grid(row=2,column=1) """
-
-        self.stop = tk.Button(self.rightFrame,text="Stop Recording")
-        self.stop.grid(row=3,column=1)
 
         #REPEAT
         self.repeatLabel = tk.Label(self.rightFrame,text="Enter number of macro repetitions")
@@ -88,11 +84,11 @@ class MouseMacro:
         self.speed.grid(row=7,column=0)
 
         #START
-        self.start = tk.Button(self.rightFrame,text="Run Macro")
+        self.start = tk.Button(self.rightFrame,text="Run Macro", command=self.macroController)
         self.start.grid(row=8,column=0)
 
-        self.test = tk.Label(self.rightFrame,text="test label")
-        self.test.grid(row=8,column=1)
+        self.mousePosLabel = tk.Label(self.rightFrame,text="test label")
+        self.mousePosLabel.grid(row=8,column=1)
 
         self.startListener()
         self.processMouseQueue()
@@ -101,37 +97,103 @@ class MouseMacro:
 
         self.root.protocol("WM_DELETE_WINDOW", self.closeApp)
 
+
     def clearList(self):
         self.eventList.delete(0,tk.END)
+        self.recordedEvents = []
 
 
     def startListener(self):
-        if self.listener is None or not self.listener.is_alive():
-            self.listener = mouse.Listener(on_move=self.mouseMove)
+        if self.mouseListener is None or not self.mouseListener.is_alive():
+            self.listener = mouse.Listener(on_move=self.mouseMove,
+                                           on_click=self.mouseClick)
             self.listener.start()
             
 
+    def mouseClick(self,x,y,button,pressed):
+        if self.recording and pressed:
+            try:
+                self.mouseQueue.put(("click",x,y,button,pressed))
+            except:
+                print(f"error adding {button} click {x},{y}")
+
     def mouseMove(self,x,y):
         try:
-            self.mousePosQueue.put((x,y))
+            self.mouseQueue.put(("move",x,y))
         except Exception as e:
             print(f"Error adding into queue {e}")
 
     def processMouseQueue(self):
         try:
             while True:
-                x,y = self.mousePosQueue.get_nowait()
-                self.testPos(x,y)
+                eventData = self.mouseQueue.get_nowait()
+                eventType = eventData[0]
+                x,y = eventData[1],eventData[2]
+
+                if eventType == "move":
+                    self.mousePosDisplay(x,y)
+
+                elif eventType == "click":
+                    button,pressed = eventData[3],eventData[4]
+                    if pressed:
+                        self.recordedEvents.append(eventData)
+                        self.eventList.insert(tk.END,f"click {button} at {x},{y}")
+
         except queue.Empty:
             pass
         finally:
             self.root.after(100,self.processMouseQueue)
 
-    def testPos(self,x,y):
-        self.test.config(text=f"pos at {x} and {y}")
+    def mousePosDisplay(self,x,y):
+        self.mousePosLabel.config(text=f"pos at {x} and {y}")
 
-    def recordEvent():
-        ...
+
+    def recordingStatus(self):
+        if not self.recording:
+            self.startRecording()
+        else:
+            self.stopRecording()
+
+    def startRecording(self):
+        if not self.recording:
+            print("recording started")
+            self.recording = True
+            self.clearList()
+            self.record.config(text="Stop recording",fg="red")
+            
+
+    def stopRecording(self):
+        if self.recording:
+            print("recording stopped")
+            self.recording = False
+            self.record.config(text="Start recording",fg="black")
+
+    def macroController(self):
+        
+        if not self.macroRunning:
+
+            self.start.config(text="Stop Macro", fg="red")
+            self.runMacro()
+        else:
+            self.start.config(text="Run Macro", fg="black")
+            self.stopMacro()
+
+    def runMacro(self):
+        
+        try:
+           repetitions = int(self.repeat.get())
+           eventType, x, y, button, _ = self.recordedEvents
+           while repetitions > 0: 
+            for i in len(self.recordedEvents):
+                if eventType == "click":
+                    self.mouseControl.click(button,x,y)
+
+            repetitions -= 1
+
+
+        except:
+            print("error processing recorded events") 
+
 
     def closeApp(self):
         if self.listener and self.listener.is_alive():
@@ -145,5 +207,6 @@ class MouseMacro:
 
 #macro.displayMousePosition()
 root = tk.Tk()
+
 app = MouseMacro(root)
 root.mainloop()
