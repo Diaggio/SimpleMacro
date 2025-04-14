@@ -1,2 +1,6 @@
 
 .venv/
+installer/*
+!installer/simplemacro.py
+
+tempCodeRunnerFile.py

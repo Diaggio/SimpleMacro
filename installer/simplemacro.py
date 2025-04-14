@@ -17,9 +17,14 @@ class MouseMacro:
         self.mouseListener = None
 
         self.keyboardListener = None
-
         self.recording = False
+
+        #MACRO CONTROLS
         self.macroRunning = False
+        self.totalRepetitions = 0
+        self.currentRepetitions = 0
+        self.currentEventIndex = 0
+        self.nextPlayback = None
 
         #LEFT Frame
         self.leftFrame = tk.Frame(root)
@@ -90,6 +95,12 @@ class MouseMacro:
         self.mousePosLabel = tk.Label(self.rightFrame,text="test label")
         self.mousePosLabel.grid(row=8,column=1)
 
+        #STATUS LABEL
+        self.statusVar = tk.StringVar()
+        self.statusVar.set("Status: Idle")
+        self.statusLabel = tk.Label(self.rightFrame,textvariable=self.statusVar)
+        self.statusLabel.grid(row=9,column=0)
+
         self.startListener()
         self.processMouseQueue()
         self.lastTime = 0
@@ -105,29 +116,31 @@ class MouseMacro:
 
     def startListener(self):
         if self.mouseListener is None or not self.mouseListener.is_alive():
-            self.listener = mouse.Listener(on_move=self.mouseMove,
+            self.mouseListener = mouse.Listener(on_move=self.mouseMove,
                                            on_click=self.mouseClick)
-            self.listener.start()
+            self.mouseListener.start()
             
 
     def mouseClick(self,x,y,button,pressed):
-        if self.recording and pressed:
+        if self.recording:
             try:
-                self.mouseQueue.put(("click",x,y,button,pressed))
+                self.mouseQueue.put(("click",x,y,button,pressed,time.time()))
             except:
                 print(f"error adding {button} click {x},{y}")
 
     def mouseMove(self,x,y):
-        try:
-            self.mouseQueue.put(("move",x,y))
-        except Exception as e:
-            print(f"Error adding into queue {e}")
+        if self.recording:
+            try:
+                self.mouseQueue.put(("move",x,y,time.time()))
+            except Exception as e:
+                print(f"Error adding into queue {e}")
 
     def processMouseQueue(self):
         try:
             while True:
                 eventData = self.mouseQueue.get_nowait()
                 eventType = eventData[0]
+                self.recordedEvents.append(eventData)
                 x,y = eventData[1],eventData[2]
 
                 if eventType == "move":
@@ -136,7 +149,6 @@ class MouseMacro:
                 elif eventType == "click":
                     button,pressed = eventData[3],eventData[4]
                     if pressed:
-                        self.recordedEvents.append(eventData)
                         self.eventList.insert(tk.END,f"click {button} at {x},{y}")
 
         except queue.Empty:
@@ -168,36 +180,115 @@ class MouseMacro:
             self.recording = False
             self.record.config(text="Start recording",fg="black")
 
+            if self.recordedEvents:
+                lastEvent = self.recordedEvents[-1]
+                if lastEvent[0] == "click":
+                    self.recordedEvents.pop()
+                    self.eventList.delete(tk.END)
+
     def macroController(self):
         
         if not self.macroRunning:
-
-            self.start.config(text="Stop Macro", fg="red")
             self.runMacro()
         else:
-            self.start.config(text="Run Macro", fg="black")
             self.stopMacro()
 
     def runMacro(self):
+        self.macroRunning = True
+        if not self.recordedEvents:
+            print("no recorded events")
+            self.stopMacro()
+            return;
         
         try:
-           repetitions = int(self.repeat.get())
-           eventType, x, y, button, _ = self.recordedEvents
-           while repetitions > 0: 
-            for i in len(self.recordedEvents):
-                if eventType == "click":
-                    self.mouseControl.click(button,x,y)
+           self.totalRepetitions = int(self.repeat.get())
+           self.start.config(text="Stop Macro", fg="red")
+        except ValueError:
+           print("invalid repetition count")
+           self.stopMacro()
+           return
+        
+        if self.totalRepetitions <= 0:
+            print("repetitions must be positive")
+            self.stopMacro()
+            return
+        
+        self.currentRepetitions = 1
+        self.currentEventIndex = 0
+        self.statusVar.set(f"Rep:{self.currentRepetitions} / {self.totalRepetitions}")
+        self.nextPlayback = self.root.after(10, self.macroLogic)
 
-            repetitions -= 1
+    def stopMacro(self):
+        self.macroRunning = False
+        if self.nextPlayback:
+            self.root.after_cancel(self.nextPlayback)
+            self.nextPlayback = None
+        self.start.config(text="Run Macro",fg="black")
+
+    def macroLogic(self):
+        if not self.macroRunning:
+            print("macro stopped")
+            return
+        
+        if not self.recordedEvents or self.currentEventIndex >= len(self.recordedEvents):
+            
+            self.currentRepetitions += 1
+            if self.currentRepetitions > self.totalRepetitions:
+                self.macroFinished()
+                return
+            
+            self.currentEventIndex = 0
+            self.statusVar.set(f"Rep:{self.currentRepetitions} / {self.totalRepetitions}")
+            self.nextPlayback = self.root.after(1000, self.macroLogic)
+            return
+        
+        try:
+            currentEvent = self.recordedEvents[self.currentEventIndex]
+            eventType = currentEvent[0]
+            timeStamp = currentEvent[-1]
+        except IndexError:
+            print("tried accessing the wrong index")
+            self.currentEventIndex +=1
+            self.nextPlayback = self.root.after(10,self.macroLogic)
+            return
+        
+        if eventType == "click":
+            _, x, y, button, pressed, _ = currentEvent
+            self.mouseControl.position = (x,y)
+
+            if pressed:
+                self.mouseControl.press(button)
+            else:
+                self.mouseControl.release(button)
+        elif eventType == "move":
+            _, x ,y ,_ = currentEvent
+            self.mouseControl.position = (x,y)
+        
+        delay = 10
+        nextIndex = self.currentEventIndex + 1
+        if nextIndex < len(self.recordedEvents):
+            nextTimeStamp = self.recordedEvents[nextIndex][-1]
+            delaySeconds = nextTimeStamp - timeStamp
+            delay = max(1,int(delaySeconds * 1000))
+            
+        
+            
+        self.currentEventIndex +=1
+        
+        self.nextPlayback = self.root.after(delay,self.macroLogic)
 
 
-        except:
-            print("error processing recorded events") 
-
+        
+    def macroFinished(self):
+        print("macro finished all repetitions")
+        self.statusVar.set("macro finished all repetitions")
+        self.macroRunning = False
+        self.nextPlayback = None
+        self.start.config(text="Run Macro",fg="black")
 
     def closeApp(self):
-        if self.listener and self.listener.is_alive():
-            self.listener.stop()
+        if self.mouseListener and self.mouseListener.is_alive():
+            self.mouseListener.stop()
 
         self.root.destroy()
 
