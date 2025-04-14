@@ -14,7 +14,14 @@ class MouseMacro:
         self.mouseControl = mouse.Controller()
 
         self.mouseQueue = queue.Queue()
+        self.mousePosQueue = queue.Queue()
         self.mouseListener = None
+
+        self.mouseQueueThrottle = 0.0
+        self.mousePosQueueThrottle = 0.0
+
+        self.lastMousePos = None
+        self.mouseDisplaySchedule = False
 
         self.keyboardListener = None
         self.recording = False
@@ -92,8 +99,11 @@ class MouseMacro:
         self.start = tk.Button(self.rightFrame,text="Run Macro", command=self.macroController)
         self.start.grid(row=8,column=0)
 
-        self.mousePosLabel = tk.Label(self.rightFrame,text="test label")
+        self.mousePosVar = tk.StringVar()
+        self.mousePosVar.set("Inactive")
+        self.mousePosLabel = tk.Label(self.rightFrame,textvariable=self.mousePosVar)
         self.mousePosLabel.grid(row=8,column=1)
+
 
         #STATUS LABEL
         self.statusVar = tk.StringVar()
@@ -103,6 +113,7 @@ class MouseMacro:
 
         self.startListener()
         self.processMouseQueue()
+        #self.processMouseDisplayQueue()
         self.lastTime = 0
 
 
@@ -119,6 +130,7 @@ class MouseMacro:
             self.mouseListener = mouse.Listener(on_move=self.mouseMove,
                                            on_click=self.mouseClick)
             self.mouseListener.start()
+            #self.mouseListener.stop()
             
 
     def mouseClick(self,x,y,button,pressed):
@@ -129,11 +141,22 @@ class MouseMacro:
                 print(f"error adding {button} click {x},{y}")
 
     def mouseMove(self,x,y):
+        now = time.time()
+
+        self.lastMousePos = (x,y)
+        if not self.mouseDisplaySchedule:
+            self.mouseDisplaySchedule = True
+            self.root.after(100,self.mousePosDisplay)
+            
         if self.recording:
+            recordInterval = 0.05
+            if now - self.mouseQueueThrottle > recordInterval:
+                self.mousePosQueueThrottle = now
             try:
                 self.mouseQueue.put(("move",x,y,time.time()))
             except Exception as e:
                 print(f"Error adding into queue {e}")
+
 
     def processMouseQueue(self):
         try:
@@ -143,10 +166,7 @@ class MouseMacro:
                 self.recordedEvents.append(eventData)
                 x,y = eventData[1],eventData[2]
 
-                if eventType == "move":
-                    self.mousePosDisplay(x,y)
-
-                elif eventType == "click":
+                if eventType == "click":
                     button,pressed = eventData[3],eventData[4]
                     if pressed:
                         self.eventList.insert(tk.END,f"click {button} at {x},{y}")
@@ -156,8 +176,28 @@ class MouseMacro:
         finally:
             self.root.after(100,self.processMouseQueue)
 
-    def mousePosDisplay(self,x,y):
-        self.mousePosLabel.config(text=f"pos at {x} and {y}")
+
+    def processMouseDisplayQueue(self):
+        latestPos = None
+
+        try:
+            while not self.mousePosQueue.empty():
+                latestPos = self.mousePosQueue.get_nowait()
+
+                if latestPos is not None:
+                    x,y = latestPos
+                    self.mousePosDisplay(x,y)
+
+        except queue.Empty():
+            pass
+        finally:
+            self.root.after(100,self.processMouseDisplayQueue)
+
+    def mousePosDisplay(self):
+        if self.lastMousePos:
+            x,y = self.lastMousePos
+            self.mousePosVar.set(f"pos at {int(x)} and {int(y)}")
+        self.mouseDisplaySchedule= False
 
 
     def recordingStatus(self):
@@ -224,11 +264,15 @@ class MouseMacro:
             self.root.after_cancel(self.nextPlayback)
             self.nextPlayback = None
         self.start.config(text="Run Macro",fg="black")
+        self.statusVar.set("Macro Stopped")
+        print("Macro Stopped")
 
     def macroLogic(self):
         if not self.macroRunning:
             print("macro stopped")
             return
+        
+
         
         if not self.recordedEvents or self.currentEventIndex >= len(self.recordedEvents):
             
@@ -239,9 +283,13 @@ class MouseMacro:
             
             self.currentEventIndex = 0
             self.statusVar.set(f"Rep:{self.currentRepetitions} / {self.totalRepetitions}")
-            self.nextPlayback = self.root.after(1000, self.macroLogic)
+            
+            #the 500 deay here is to set the next iteration of events
+            self.nextPlayback = self.root.after(500, self.macroLogic)
             return
         
+
+
         try:
             currentEvent = self.recordedEvents[self.currentEventIndex]
             eventType = currentEvent[0]
@@ -275,6 +323,7 @@ class MouseMacro:
             
         self.currentEventIndex +=1
         
+        #the delay here sets time between macro events 
         self.nextPlayback = self.root.after(delay,self.macroLogic)
 
 
