@@ -131,7 +131,21 @@ class MouseMacro:
                                            on_click=self.mouseClick)
             self.mouseListener.start()
             #self.mouseListener.stop()
-            
+        if self.keyboardListener is None or not self.keyboardListener.is_alive():
+            self.keyboardListener = keyboard.Listener(on_press=self.keyboardPress,
+                                                      on_release=self.keyboardRelease)
+            self.keyboardListener.start()
+
+    def keyboardPress(self,key):
+        try:
+            print("alphanumeric key {0} pressed".format(key.char))
+        except AttributeError:
+            print("special key {0} pressed".format(key))
+    
+    def keyboardRelease(self,key):
+        print("{0} released".format(key))
+        if key == keyboard.Key.esc:
+            return False
 
     def mouseClick(self,x,y,button,pressed):
         if self.recording:
@@ -143,10 +157,10 @@ class MouseMacro:
     def mouseMove(self,x,y):
         now = time.time()
 
-        self.lastMousePos = (x,y)
+        """ self.lastMousePos = (x,y)
         if not self.mouseDisplaySchedule:
             self.mouseDisplaySchedule = True
-            self.root.after(100,self.mousePosDisplay)
+            self.root.after(1000,self.mousePosDisplay) """
             
         if self.recording:
             recordInterval = 0.05
@@ -177,7 +191,7 @@ class MouseMacro:
             self.root.after(100,self.processMouseQueue)
 
 
-    def processMouseDisplayQueue(self):
+    """ def processMouseDisplayQueue(self):
         latestPos = None
 
         try:
@@ -191,13 +205,14 @@ class MouseMacro:
         except queue.Empty():
             pass
         finally:
-            self.root.after(100,self.processMouseDisplayQueue)
+            self.root.after(100,self.processMouseDisplayQueue) """
 
     def mousePosDisplay(self):
         if self.lastMousePos:
             x,y = self.lastMousePos
+            #print(f"mouse pos currently {int(x)} and {int(y)}")
             self.mousePosVar.set(f"pos at {int(x)} and {int(y)}")
-        self.mouseDisplaySchedule= False
+        self.mouseDisplaySchedule = False
 
 
     def recordingStatus(self):
