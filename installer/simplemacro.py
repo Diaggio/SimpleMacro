@@ -11,106 +11,35 @@ class MouseMacro:
         self.root.title("Simple Macro")
 
         self.recordedEvents = []
-        self.mouseControl = mouse.Controller()
 
+        #MOUSE CONTROLS AND PARAMETERS
+        self.mouseControl = mouse.Controller()
         self.mouseQueue = queue.Queue()
         self.mousePosQueue = queue.Queue()
         self.mouseListener = None
-
-        self.mouseQueueThrottle = 0.0
-        self.mousePosQueueThrottle = 0.0
-
+        #self.mouseQueueThrottle = 0.0 #utilized for displaying mouse position on GUI - lagging on mac
+        #self.mousePosQueueThrottle = 0.0
         self.lastMousePos = None
         self.mouseDisplaySchedule = False
 
-        self.keyboardListener = None
-        self.recording = False
 
-        #MACRO CONTROLS
+        #KEYBOARD CONTROLS AND PARAMETERS
+        self.keyboardListener = None
+
+        #MAIN MACRO CONTROLS
+        self.recording = False
         self.macroRunning = False
         self.totalRepetitions = 0
         self.currentRepetitions = 0
         self.currentEventIndex = 0
         self.nextPlayback = None
 
-        #LEFT Frame
-        self.leftFrame = tk.Frame(root)
-        self.leftFrame.grid(row=0,column=0, sticky="nsew")
-        self.leftFrame.columnconfigure(0,weight=1)
-        self.leftFrame.rowconfigure(0,weight=1)
-
-        #EVENT LIST
-        self.eventListLabel = tk.Label(self.leftFrame,text="Events")
-        self.eventListLabel.grid(row=0,column=0)
-
-        self.eventList = tk.Listbox(self.leftFrame)
-        self.eventList.grid(row=1,column=0,columnspan=2)
-
-        #UPDATE
-        self.update = tk.Button(self.leftFrame,text="Update")
-        self.update.grid(row=2,column=0)
-
-        #CLEAR
-        self.clear = tk.Button(self.leftFrame,text="Clear",command=self.clearList)
-        self.clear.grid(row=2,column=1)
-
-        # RIGHT Frame
-        self.rightFrame = tk.Frame(root,borderwidth=1,relief="solid")
-        self.rightFrame.grid(row=0,column=1, sticky="nsew")
-        self.rightFrame.config(highlightbackground="red",highlightthickness=2)
-
-
-        #RECORD HOTKEY
-        self.recordHotkeyLabel = tk.Label(self.rightFrame,text="Set Record Hotkey",bg="white",fg="blue",relief="solid",borderwidth=2)
-        self.recordHotkeyLabel.grid(row=0,column=0)
-
-        self.recordHotkey = tk.Button(self.rightFrame,text="test")
-        self.recordHotkey.grid(row=1,column=0)
-
-        #STOP HOTKEY
-
-        self.stopHotkeyLabel = tk.Label(self.rightFrame,text="Stop Hotkey")
-        self.stopHotkeyLabel.grid(row=0,column=1)
-
-        self.stopHotkey = tk.Button(self.rightFrame,text="test")
-        self.stopHotkey.grid(row=1,column=1)
-
-        #RECORD
-
-        self.record = tk.Button(self.rightFrame,text="Start Recording",command=self.recordingStatus)
-        self.record.grid(row=3,column=0, columnspan=2)
-
-
-        #REPEAT
-        self.repeatLabel = tk.Label(self.rightFrame,text="Enter number of macro repetitions")
-        self.repeatLabel.grid(row=4, column=0, columnspan=2, pady=(10, 0),sticky="ew")
-
-        self.repeat = tk.Entry(self.rightFrame)
-        self.repeat.grid(row=5,column=0)
-
-        #SPEED
-        self.speedLabel = tk.Label(self.rightFrame,text="Speed")
-        self.speedLabel.grid(row=6,column=0)
-
-        self.speed = tk.OptionMenu(self.rightFrame,"2x","1x")
-        self.speed.grid(row=7,column=0)
-
-        #START
-        self.start = tk.Button(self.rightFrame,text="Run Macro", command=self.macroController)
-        self.start.grid(row=8,column=0)
-
-        self.mousePosVar = tk.StringVar()
-        self.mousePosVar.set("Inactive")
-        self.mousePosLabel = tk.Label(self.rightFrame,textvariable=self.mousePosVar)
-        self.mousePosLabel.grid(row=8,column=1)
-
-
-        #STATUS LABEL
-        self.statusVar = tk.StringVar()
-        self.statusVar.set("Status: Idle")
-        self.statusLabel = tk.Label(self.rightFrame,textvariable=self.statusVar)
-        self.statusLabel.grid(row=9,column=0)
-
+        #GUI SETUP
+        self.createFrames()
+        self.createWidgets()
+        self.setGrid()
+        
+    
         self.startListener()
         self.processMouseQueue()
         #self.processMouseDisplayQueue()
@@ -119,6 +48,65 @@ class MouseMacro:
 
         self.root.protocol("WM_DELETE_WINDOW", self.closeApp)
 
+
+    def createFrames(self):
+        self.leftFrame = tk.Frame(root)
+        self.leftFrame.columnconfigure(0,weight=1)
+        self.leftFrame.rowconfigure(0,weight=1)
+
+        self.rightFrame = tk.Frame(root,borderwidth=1,relief="solid")
+        self.rightFrame.config(highlightbackground="red",highlightthickness=2)
+
+    def createWidgets(self):
+        #Left Frame
+        self.eventListLabel = tk.Label(self.leftFrame,text="Events")
+        self.eventList = tk.Listbox(self.leftFrame)
+        self.update = tk.Button(self.leftFrame,text="Update")
+        self.clear = tk.Button(self.leftFrame,text="Clear",command=self.clearList)
+        
+        #Right Frame
+        self.recordHotkeyLabel = tk.Label(self.rightFrame,text="Set Record Hotkey",bg="white",fg="blue",relief="solid",borderwidth=2)
+        self.recordHotkey = tk.Button(self.rightFrame,text="test")
+        self.stopHotkeyLabel = tk.Label(self.rightFrame,text="Stop Hotkey")
+        self.stopHotkey = tk.Button(self.rightFrame,text="test")
+        self.record = tk.Button(self.rightFrame,text="Start Recording",command=self.recordingStatus)
+        self.repeatLabel = tk.Label(self.rightFrame,text="Enter number of macro repetitions")
+        self.repeat = tk.Entry(self.rightFrame)
+        self.speedLabel = tk.Label(self.rightFrame,text="Speed")
+        self.speed = tk.OptionMenu(self.rightFrame,"2x","1x")
+        self.start = tk.Button(self.rightFrame,text="Run Macro", command=self.macroController)
+        self.mousePosVar = tk.StringVar()
+        self.mousePosVar.set("Inactive")
+        self.mousePosLabel = tk.Label(self.rightFrame,textvariable=self.mousePosVar)
+        self.statusVar = tk.StringVar()
+        self.statusVar.set("Status: Idle")
+        self.statusLabel = tk.Label(self.rightFrame,textvariable=self.statusVar)
+
+    def setGrid(self):
+        #frames
+        self.leftFrame.grid(row=0,column=0, sticky="nsew")
+        self.rightFrame.grid(row=0,column=1, sticky="nsew")
+
+        #Left Frame
+        self.eventListLabel.grid(row=0,column=0)
+        self.eventList.grid(row=1,column=0,columnspan=2)
+        self.update.grid(row=2,column=0)
+        self.clear.grid(row=2,column=1)
+        
+        
+        #Right Frame
+        self.recordHotkeyLabel.grid(row=0,column=0)
+        self.recordHotkey.grid(row=1,column=0)
+        self.stopHotkeyLabel.grid(row=0,column=1)
+        self.stopHotkey.grid(row=1,column=1)
+        self.record.grid(row=3,column=0, columnspan=2)
+        self.repeatLabel.grid(row=4, column=0, columnspan=2, pady=(10, 0),sticky="ew")
+        self.repeat.grid(row=5,column=0)
+        self.speedLabel.grid(row=6,column=0)
+        self.speed.grid(row=7,column=0)
+        self.start.grid(row=8,column=0)
+        self.mousePosLabel.grid(row=8,column=1)
+        self.statusLabel.grid(row=9,column=0)
 
     def clearList(self):
         self.eventList.delete(0,tk.END)
@@ -138,9 +126,15 @@ class MouseMacro:
 
     def keyboardPress(self,key):
         try:
-            print("alphanumeric key {0} pressed".format(key.char))
+            #print("alphanumeric key {0} pressed".format(key.char))
+            print(f"alphanumeric key {key} pressed")
+            if key.char == 'q':
+                print("q was pressed")
+            if key == keyboard.Key.shift:
+                print("shift was pressed")
         except AttributeError:
-            print("special key {0} pressed".format(key))
+            #print("special key {0} pressed".format(key))
+            print(f"special key {key} pressed")
     
     def keyboardRelease(self,key):
         print("{0} released".format(key))
@@ -207,12 +201,14 @@ class MouseMacro:
         finally:
             self.root.after(100,self.processMouseDisplayQueue) """
 
-    def mousePosDisplay(self):
+        #THIS PRINTS THE X AND Y MOUSE POSITION IN A GUI LABEL
+        #BUGGED ON MAC - FREEZING GUI. OK ON WINDOWS
+    """ def mousePosDisplay(self):
         if self.lastMousePos:
             x,y = self.lastMousePos
             #print(f"mouse pos currently {int(x)} and {int(y)}")
             self.mousePosVar.set(f"pos at {int(x)} and {int(y)}")
-        self.mouseDisplaySchedule = False
+        self.mouseDisplaySchedule = False """
 
 
     def recordingStatus(self):
