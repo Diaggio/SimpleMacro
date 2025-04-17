@@ -26,7 +26,7 @@ class MouseMacro:
         #KEYBOARD CONTROLS AND PARAMETERS
         self.keyboardControl = keyboard.Controller()
         self.keyboardListener = None
-        self.recordGlobalHotkey = '<esc>'
+        self.recordGlobalHotkey = '<ctrl>+a'
         self.recordGlobalHotkeyListener = keyboard.GlobalHotKeys({
             self.recordGlobalHotkey: self.recordingStatus
         })
@@ -78,9 +78,9 @@ class MouseMacro:
         
         #Right Frame
         self.recordHotkeyLabel = tk.Label(self.rightFrame,text="Set Record Hotkey",bg="white",fg="blue",relief="solid",borderwidth=2)
-        self.recordHotkey = tk.Button(self.rightFrame,text="test", command=self.recordHotKeyStatus)
+        self.recordHotkey = tk.Button(self.rightFrame,text="ctrl+1", command=self.recordHotKeyStatus)
         self.stopHotkeyLabel = tk.Label(self.rightFrame,text="Stop Hotkey")
-        self.stopHotkey = tk.Button(self.rightFrame,text="test")
+        self.stopHotkey = tk.Button(self.rightFrame,text="ctrl+2")
         self.record = tk.Button(self.rightFrame,text="Start Recording",command=self.recordingStatus)
         self.repeatLabel = tk.Label(self.rightFrame,text="Enter number of macro repetitions")
         self.repeat = tk.Entry(self.rightFrame)
@@ -155,30 +155,30 @@ class MouseMacro:
             return False
         
 
+    #sets the hotkey the moment the first key of the list gets released
     def setRecordHotKey(self,key):
         self.comboLimit = 3
         if len(self.keyHotKeyList) < self.comboLimit:
             keyName = str(key).split(".")[-1]
             self.keyHotKeyList.append(keyName)
         else:
-            self.isSettingRecordHotKey = False
+            #self.isSettingRecordHotKey = False
             self.recordHotKeyStatus()
 
 
 
 
     def recordHotKeyStatus(self):
-        if self.isSettingRecordHotKey:
+        if not self.isSettingRecordHotKey:
             self.recordHotkey.config(text="Set Hotkey",fg="red")
             self.keyHotKeyList = []
             self.isSettingRecordHotKey = True
-            self.recordGlobalHotkey = self.getGlobalHotkey()
+            #self.recordGlobalHotkey = self.getGlobalHotkey()
         else:
-            self.recordHotkey.config(text="Set Hotkey",fg="black")
+            self.isSettingRecordHotKey = False
+            self.recordHotkey.config(text=f"{self.recordGlobalHotkey}",fg="black")
 
 
-    def getGlobalHotkey(self):
-        lastKey = key
 
     def mouseClick(self,x,y,button,pressed):
         if self.isRecording:
