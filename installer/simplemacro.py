@@ -17,17 +17,25 @@ class MouseMacro:
         self.mouseQueue = queue.Queue()
         self.mousePosQueue = queue.Queue()
         self.mouseListener = None
-        #self.mouseQueueThrottle = 0.0 #utilized for displaying mouse position on GUI - lagging on mac
-        #self.mousePosQueueThrottle = 0.0
+        self.mouseQueueThrottle = 0.0 
+        #self.mousePosQueueThrottle = 0.0 #utilized for displaying mouse position on GUI - lagging on mac
         self.lastMousePos = None
         self.mouseDisplaySchedule = False
 
 
         #KEYBOARD CONTROLS AND PARAMETERS
+        self.keyboardControl = keyboard.Controller()
         self.keyboardListener = None
+        self.recordGlobalHotkey = '<esc>'
+        self.recordGlobalHotkeyListener = keyboard.GlobalHotKeys({
+            self.recordGlobalHotkey: self.recordingStatus
+        })
+        self.isSettingRecordHotKey = False
+        self.keyList = []
+        self.keyHotKeyList = []
 
         #MAIN MACRO CONTROLS
-        self.recording = False
+        self.isRecording = False
         self.macroRunning = False
         self.totalRepetitions = 0
         self.currentRepetitions = 0
@@ -44,10 +52,14 @@ class MouseMacro:
         self.processMouseQueue()
         #self.processMouseDisplayQueue()
         self.lastTime = 0
+        
 
 
         self.root.protocol("WM_DELETE_WINDOW", self.closeApp)
 
+
+    def testFunc(self):
+        self.keyboardControl.type("this is a test type")
 
     def createFrames(self):
         self.leftFrame = tk.Frame(root)
@@ -66,7 +78,7 @@ class MouseMacro:
         
         #Right Frame
         self.recordHotkeyLabel = tk.Label(self.rightFrame,text="Set Record Hotkey",bg="white",fg="blue",relief="solid",borderwidth=2)
-        self.recordHotkey = tk.Button(self.rightFrame,text="test")
+        self.recordHotkey = tk.Button(self.rightFrame,text="test", command=self.recordHotKeyStatus)
         self.stopHotkeyLabel = tk.Label(self.rightFrame,text="Stop Hotkey")
         self.stopHotkey = tk.Button(self.rightFrame,text="test")
         self.record = tk.Button(self.rightFrame,text="Start Recording",command=self.recordingStatus)
@@ -123,26 +135,53 @@ class MouseMacro:
             self.keyboardListener = keyboard.Listener(on_press=self.keyboardPress,
                                                       on_release=self.keyboardRelease)
             self.keyboardListener.start()
+        if not self.recordGlobalHotkeyListener.running:
+            self.recordGlobalHotkeyListener.start()
 
     def keyboardPress(self,key):
         try:
-            #print("alphanumeric key {0} pressed".format(key.char))
-            print(f"alphanumeric key {key} pressed")
-            if key.char == 'q':
-                print("q was pressed")
+            if self.isSettingRecordHotKey:
+                self.setRecordHotKey(key);
+            print("alphanumeric key {0} pressed".format(key.char))
+        except AttributeError:
+            print("special key {0} pressed".format(key))
+            #print(f"special key {key} pressed")
             if key == keyboard.Key.shift:
                 print("shift was pressed")
-        except AttributeError:
-            #print("special key {0} pressed".format(key))
-            print(f"special key {key} pressed")
     
     def keyboardRelease(self,key):
         print("{0} released".format(key))
         if key == keyboard.Key.esc:
             return False
+        
+
+    def setRecordHotKey(self,key):
+        self.comboLimit = 3
+        if len(self.keyHotKeyList) < self.comboLimit:
+            keyName = str(key).split(".")[-1]
+            self.keyHotKeyList.append(keyName)
+        else:
+            self.isSettingRecordHotKey = False
+            self.recordHotKeyStatus()
+
+
+
+
+    def recordHotKeyStatus(self):
+        if self.isSettingRecordHotKey:
+            self.recordHotkey.config(text="Set Hotkey",fg="red")
+            self.keyHotKeyList = []
+            self.isSettingRecordHotKey = True
+            self.recordGlobalHotkey = self.getGlobalHotkey()
+        else:
+            self.recordHotkey.config(text="Set Hotkey",fg="black")
+
+
+    def getGlobalHotkey(self):
+        lastKey = key
 
     def mouseClick(self,x,y,button,pressed):
-        if self.recording:
+        if self.isRecording:
             try:
                 self.mouseQueue.put(("click",x,y,button,pressed,time.time()))
             except:
@@ -156,7 +195,7 @@ class MouseMacro:
             self.mouseDisplaySchedule = True
             self.root.after(1000,self.mousePosDisplay) """
             
-        if self.recording:
+        if self.isRecording:
             recordInterval = 0.05
             if now - self.mouseQueueThrottle > recordInterval:
                 self.mousePosQueueThrottle = now
@@ -212,23 +251,23 @@ class MouseMacro:
 
 
     def recordingStatus(self):
-        if not self.recording:
+        if not self.isRecording:
             self.startRecording()
         else:
             self.stopRecording()
 
     def startRecording(self):
-        if not self.recording:
+        if not self.isRecording:
             print("recording started")
-            self.recording = True
+            self.isRecording = True
             self.clearList()
             self.record.config(text="Stop recording",fg="red")
             
 
     def stopRecording(self):
-        if self.recording:
+        if self.isRecording:
             print("recording stopped")
-            self.recording = False
+            self.isRecording = False
             self.record.config(text="Start recording",fg="black")
 
             if self.recordedEvents:
@@ -354,10 +393,7 @@ class MouseMacro:
 
 
 
-#screenWidth, screenHeight = macro.size()
-
 #macro.displayMousePosition()
 root = tk.Tk()
-
 app = MouseMacro(root)
 root.mainloop()
