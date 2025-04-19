@@ -30,7 +30,7 @@ class MouseMacro:
         self.recordGlobalHotkeyListener = keyboard.GlobalHotKeys({
             self.recordGlobalHotkey: self.recordingStatus
         })
-        self.isSettingRecordHotKey = False
+        self.isSettingHotkey = False
         self.keyList = []
         self.keyHotKeyList = []
 
@@ -140,7 +140,7 @@ class MouseMacro:
 
     def keyboardPress(self,key):
         try:
-            if self.isSettingRecordHotKey:
+            if self.isSettingHotkey:
                 self.setRecordHotKey(key);
             print("alphanumeric key {0} pressed".format(key.char))
         except AttributeError:
@@ -150,7 +150,10 @@ class MouseMacro:
                 print("shift was pressed")
     
     def keyboardRelease(self,key):
-        print("{0} released".format(key))
+
+        if self.isSettingHotkey:
+
+            print("{0} released".format(key))
         if key == keyboard.Key.esc:
             return False
         
@@ -159,23 +162,32 @@ class MouseMacro:
     def setRecordHotKey(self,key):
         self.comboLimit = 3
         if len(self.keyHotKeyList) < self.comboLimit:
+            #this is checking if the list is empty
             keyName = str(key).split(".")[-1]
-            self.keyHotKeyList.append(keyName)
+            if not self.keyHotKeyList:
+                if isinstance(key,keyboard.Key):
+                    self.keyHotKeyList.append(keyName)
+            else:
+                self.keyHotKeyList.append(keyName)
+                
         else:
-            #self.isSettingRecordHotKey = False
-            self.recordHotKeyStatus()
+            #self.isSettingHotkey = False
+            hotkeyName = ""
+            for i in self.keyHotKeyList:
+                hotkeyName += i
+            print(hotkeyName)
 
 
 
 
     def recordHotKeyStatus(self):
-        if not self.isSettingRecordHotKey:
+        if not self.isSettingHotkey:
             self.recordHotkey.config(text="Set Hotkey",fg="red")
             self.keyHotKeyList = []
-            self.isSettingRecordHotKey = True
+            self.isSettingHotkey = True
             #self.recordGlobalHotkey = self.getGlobalHotkey()
         else:
-            self.isSettingRecordHotKey = False
+            self.isSettingHotkey = False
             self.recordHotkey.config(text=f"{self.recordGlobalHotkey}",fg="black")
 
 
