@@ -1,4 +1,4 @@
-from pynput.keyboard import Key, Listener
+""" from pynput.keyboard import Key, Listener
 import sys
 
 print("\nPress Esc to exit\n")
@@ -28,5 +28,8 @@ def on_press(key):
     if key == Key.esc:
         sys.exit()
 
-with Listener(on_press=on_press, suppress=True) as listener:
-    listener.join()
+with Listener(on_press=on_press) as listener:
+    listener.join() """
+
+
+

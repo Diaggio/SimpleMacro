@@ -90,14 +90,16 @@ class MouseMacro:
 
     def createWidgets(self):
         #Left Frame
-        self.eventListLabel = ttk.Label(self.leftFrame,text="Events")
+        self.eventListLabel = ttk.Label(self.leftFrame,text="Events",anchor="center")
         self.eventList = tk.Listbox(self.leftFrame,width=50)
         #self.update = ttk.Button(self.buttonFrame,text="Update")
         self.clear = ttk.Button(self.buttonFrame,text="Clear",command=self.clearListButton)
         
         #Right Frame
-        self.recordHotkeyLabel = ttk.Label(self.rightFrame,text="Set Start/Stop Record Hotkey",anchor="center")
+        self.recordHotkeyLabel = ttk.Label(self.rightFrame,text="Set Record Hotkey",anchor="center")
         self.recordHotkey = ttk.Button(self.rightFrame,text="click to set", command= lambda: self.setHotkeyMode("record"))
+        self.stopMacroLabel = ttk.Label(self.rightFrame,text="Stop Macro",anchor="center")
+        self.stopMacroButton = ttk.Button(self.rightFrame,text="click to set", command= lambda: self.setHotkeyMode("stop"))
         self.record = ttk.Button(self.rightFrame,text="Start Recording",command=self.recordingStatus)
         self.repeatLabel = ttk.Label(self.rightFrame,text="Enter number of macro repetitions",anchor="center")
         self.repeat = ttk.Entry(self.rightFrame)
@@ -192,16 +194,14 @@ class MouseMacro:
             self.keyboardListener.start()
 
     def keyboardPress(self,key):
-        #print(f"Press: {key} (char: {getattr(key, 'char', 'N/A')})")
+        print(key)
         try:
-            print(f"pressed {self.getKeyName(key)}")
-
             if self.isSettingHotkey:
                 self.collectHotkeyKey(key,"keyPress");
             elif self.isRecording:
                 self.keyboardQueue.put(("keyPress",key,time.time()))
                 #print(f"testing vk {key.vk}")
-            #print(f"key {key} pressed")
+            print(f"pressed {self.getKeyName(key)}")
         except Exception as e:
             print(f"error when pressing {e}")
     
@@ -215,7 +215,7 @@ class MouseMacro:
             if self.isRecording:
                 self.keyboardQueue.put(("keyRelease",key,time.time()))
 
-            print(f"released {self.getKeyName(key)}")
+            #print(f"released {self.getKeyName(key)}")
        
         except Exception as e:
             print(f"error when releasing {e}")
@@ -311,14 +311,20 @@ class MouseMacro:
 
     def getKeyName(self,key):
         #CHARS
-        
+        #print(key)
         if isinstance(key,keyboard.KeyCode):
             print(f"vk is {key.vk}")
-            keyName = keyboard.KeyCode.from_vk(int(key.vk))
-            print(f"converted vk {key.vk} is {keyName.char}")
+
+            if key.char is None or not key.char.isprintable():
+                print("key is not printable")
+                print(f"char representation is {chr(key.vk)}")
+            else:
+                print("key is printable")
+      
             return key.char
         #control keys
         else:
+            print(key.value)
             return str(key).split(".")[-1].split('_')[0]
 
     def getCharUpperLower(self):
