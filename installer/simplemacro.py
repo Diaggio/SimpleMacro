@@ -15,7 +15,6 @@ class MouseMacro:
 
         self.style = ttk.Style()
         self.style.configure("RedText.TButton",foreground="red")
-        self.style.configure("BlackText.TButton",foreground="black")
 
         self.recordedEvents = []
 
@@ -34,15 +33,21 @@ class MouseMacro:
         self.keyboardControl = keyboard.Controller()
         self.keyboardQueue = queue.Queue()
         self.keyboardListener = None
-        self.recordGlobalHotkey = " "
+        self.recordGlobalHotkey = "<ctrl>+a"
         self.globalHotkeyListener = None
         self.isSettingHotkey = False
         self.currentSettingHotkey = None
         self.keyHotkeyList = []
         self.listString = ""
         self.recordingControlKey = False
-        self.isCapsLock = False
-        self.isShift = False
+        self.modifiersList = set()
+        self.modifierDisplayMap = {
+            keyboard.Key.ctrl_l: ("ctrl", 1), keyboard.Key.ctrl_r: ("ctrl", 1),
+            keyboard.Key.shift_l: ("shift", 2), keyboard.Key.shift_r: ("shift", 2),
+            keyboard.Key.alt_l: ("alt", 3), keyboard.Key.alt_r: ("alt", 3),
+            keyboard.Key.cmd_l: ("cmd", 4), keyboard.Key.cmd_r: ("cmd", 4),
+            keyboard.Key.alt_gr: ("alt_gr", 5),
+        }
 
         #MAIN MACRO CONTROLS
         self.isRecording = False
@@ -51,6 +56,7 @@ class MouseMacro:
         self.currentRepetitions = 0
         self.currentEventIndex = 0
         self.nextPlayback = None
+        self.listEventsIndex = 0
 
         #GUI SETUP
         self.createFrames()
@@ -92,6 +98,10 @@ class MouseMacro:
         #Left Frame
         self.eventListLabel = ttk.Label(self.leftFrame,text="Events",anchor="center")
         self.eventList = tk.Listbox(self.leftFrame,width=50)
+        self.eventListScrollbar = ttk.Scrollbar(self.leftFrame, orient=tk.VERTICAL, command=self.eventList.yview)
+        self.eventList.config(yscrollcommand=self.eventListScrollbar.set)
+
+        
         #self.update = ttk.Button(self.buttonFrame,text="Update")
         self.clear = ttk.Button(self.buttonFrame,text="Clear",command=self.clearListButton)
         
@@ -143,6 +153,7 @@ class MouseMacro:
 
         self.eventListLabel.grid(row=0,column=0,columnspan=2,sticky="ew")
         self.eventList.grid(row=1,column=0,columnspan=2,sticky="nswe")
+        self.eventListScrollbar.grid(row=1,column=3,sticky='ns')
         #self.update.grid(row=0, column=1, padx=5, pady=5)
         self.clear.grid(row=0, column=1)
 
@@ -166,6 +177,7 @@ class MouseMacro:
 
     def clearListButton(self):
         self.clearList()
+        self.listEventsIndex = 0
         if self.isRecording:
             self.stopRecording()
 
@@ -297,7 +309,7 @@ class MouseMacro:
         # Apply the hotkey
         if self.currentSettingHotkey == "record":
             self.recordGlobalHotkey = hotkey_str
-            self.recordHotkey.config(text=hotkey_str, style="BlackText.TButton")
+            self.recordHotkey.config(text=hotkey_str, style="TButton")
 
             
         # Reset state
@@ -321,11 +333,15 @@ class MouseMacro:
             else:
                 print("key is printable")
       
-            return key.char
+            return key.char if key.char is not None else f"vk:{key.vk}"
         #control keys
         else:
-            print(key.value)
-            return str(key).split(".")[-1].split('_')[0]
+            if key in self.modifierDisplayMap:
+                return self.modifierDisplayMap[key][0]
+            else:
+                #print(key.value)
+                return str(key).split(".")[-1].split('_')[0]
+
 
     def getCharUpperLower(self):
         pass
@@ -335,36 +351,37 @@ class MouseMacro:
             while True:
                 eventData = self.keyboardQueue.get_nowait()
                 eventType, key, _ = eventData
+                keyName = self.getKeyName(key)
                 
                 # Add to recorded events list
                 self.recordedEvents.append(eventData)
                 #print("event data received")
-                
+                self.firstControlKey = None
 
                 # Update UI
                 if eventType == "keyPress":
-                    
-                        """ key_name = key.char if hasattr(key, 'char') and key.char else str(key).replace('Key.', '')
-                        self.eventList.insert(tk.END, f"Key press: {key_name}") """
-                        #if is a control key/enter start new string 
-                        
                         if isinstance(key,keyboard.KeyCode):
+                            print(f"checking control key {key.char}")
                             self.listString += key.char
+                            self.addToListEvent(eventType,self.listString)
                         else:
                             self.recordingControlKey = True
-                            keyName = str(key).split(".")[-1]
+
+                            if self.firstControlKey is None:
+                                self.firstControlKey = keyName
+
                             if self.listString: 
-                                self.eventList.insert(tk.END,f"key press {self.listString}")
+                                self.listEventsIndex +=1
                                 self.listString = ""
-                            """ if not self.recordingControlKey:
-                                self.eventList.insert(tk.END,f"key press {keyName}") """
                             self.listString += keyName
                 #keyRelease
                 else:
                     if isinstance(key,keyboard.Key):
+                        if keyName == self.firstControlKey:
+                            self.firstControlKey = None
                         self.recordingControlKey = False
-                        keyName = str(key).split(".")[-1]
-                        self.eventList.insert(tk.END,f"key press {self.listString}")
+                        #self.addToListEvent(eventType,self.listString)
+                        self.listEventsIndex+=1
                         self.listString = ""
               
 
@@ -374,8 +391,15 @@ class MouseMacro:
             # Schedule the next check
             self.root.after(100, self.processKeyboardQueue)
     
-    def setKeyboardString(self,key):
-        pass
+    def addToListEvent(self,eventType,item):
+        
+        if eventType == "keyPress":
+            self.eventList.delete(self.listEventsIndex)
+        
+
+            
+        self.eventList.insert(self.listEventsIndex,f"{item}")
+        self.eventList.see(tk.END)
 
 
     def mouseClick(self,x,y,button,pressed):
@@ -414,7 +438,12 @@ class MouseMacro:
                 if eventType == "click":
                     button,pressed = eventData[3],eventData[4]
                     if pressed:
-                        self.eventList.insert(tk.END,f"click {button} at {x},{y}")
+                        if self.listString:
+                            self.listEventsIndex +=1
+                            self.listString = ""
+                        self.addToListEvent(eventType,f"click {button} at x: {int(x)}, y: {int(y)}")
+                        self.listEventsIndex +=1
+                        #self.eventList.insert(tk.END,f"click {button} at x: {int(x)}, y: {int(y)}")
 
         except queue.Empty:
             pass
@@ -453,6 +482,8 @@ class MouseMacro:
             self.startRecording()
         else:
             self.stopRecording()
+        
+        self.root.focus_set()
 
     def startRecording(self):
         if not self.isRecording:
@@ -466,7 +497,7 @@ class MouseMacro:
         if self.isRecording:
             print("recording stopped")
             self.isRecording = False
-            self.record.config(text="Start recording",style="BlackText.TButton")
+            self.record.config(text="Start recording",style="TButton")
 
             if self.recordedEvents:
                 lastEvent = self.recordedEvents[-1]
@@ -511,7 +542,7 @@ class MouseMacro:
         if self.nextPlayback:
             self.root.after_cancel(self.nextPlayback)
             self.nextPlayback = None
-        self.start.config(text="Run Macro",style="BlackText.TButton")
+        self.start.config(text="Run Macro",style="TButton")
         self.statusVar.set("Macro Stopped")
         print("Macro Stopped")
 
@@ -587,7 +618,7 @@ class MouseMacro:
         self.statusVar.set("macro finished all repetitions")
         self.macroRunning = False
         self.nextPlayback = None
-        self.start.config(text="Run Macro",style="BlackText.TButton")
+        self.start.config(text="Run Macro",style="TButton")
 
     def closeApp(self):
         if self.mouseListener and self.mouseListener.is_alive():
