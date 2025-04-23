@@ -33,7 +33,7 @@ class MouseMacro:
 
 
         #KEYBOARD CONTROLS AND PARAMETERS
-        self.vk_mapping_enabled = False
+        self.vkMappingEnabled = False
         self.keyboardControl = keyboard.Controller()
         self.keyboardQueue = queue.Queue()
         self.keyboardListener = None
@@ -44,6 +44,7 @@ class MouseMacro:
         self.keyHotkeyList = []
         self.listString = ""
         self.recordingControlKey = False
+        self.currentKeys = set()
 
         #MAIN MACRO CONTROLS
         self.isRecording = False
@@ -90,12 +91,11 @@ class MouseMacro:
     def determineOS(self):
         if self.OS == "win32":
             self.initializeWindowsKeyMapping()
-        elif self.OS == "darwin":
-            self.initializeMacKeyMapping()
+        """ elif self.OS == "darwin":
+            self.initializeMacKeyMapping() """
 
 
     def initializeWindowsKeyMapping(self):
-        
         
         try:
             from ctypes import wintypes
@@ -128,36 +128,10 @@ class MouseMacro:
             self.VK_CONTROL = 0x11
             self.MAPVK_VK_TO_VSC = 0
             
-            self.vk_mapping_enabled = True
+            self.vkMappingEnabled = True
             print("Windows virtual key mapping initialized successfully")
         except Exception as e:
             print(f"Failed to initialize Windows virtual key mapping: {e}")
-
-    def initializeMacKeyMapping(self):
-        try:
-            from Quartz import (
-                TISCopyCurrentKeyboardLayoutInputSource,
-                TISGetInputSourceProperty,
-                kTISPropertyUnicodeKeyLayoutData
-            )
-            from CoreServices import (
-                UCKeyTranslate, kUCKeyActionDisplay,
-                kUCKeyTranslateNoDeadKeysMask, LMGetKbdType
-            )
-            
-            self.TISCopyCurrentKeyboardLayoutInputSource = TISCopyCurrentKeyboardLayoutInputSource
-            self.TISGetInputSourceProperty = TISGetInputSourceProperty
-            self.kTISPropertyUnicodeKeyLayoutData = kTISPropertyUnicodeKeyLayoutData
-            self.UCKeyTranslate = UCKeyTranslate
-            self.kUCKeyActionDisplay = kUCKeyActionDisplay
-            self.kUCKeyTranslateNoDeadKeysMask = kUCKeyTranslateNoDeadKeysMask
-            self.LMGetKbdType = LMGetKbdType
-            
-            self.vk_mapping_enabled = True
-            self.platform = "darwin"
-            print("macOS virtual key mapping initialized successfully")
-        except Exception as e:
-            print(f"Failed to initialize macOS virtual key mapping: {e}")
 
 
     def createFrames(self):
@@ -258,13 +232,35 @@ class MouseMacro:
         self.recordedEvents = []
        
 
+  """   #hotkey listener needs to be restarted everytime a new hotkey is set
+    #as it only stores the values when created
     def setGlobalHotkeyListener(self):
-        if self.globalHotkeyListener and self.globalHotkeyListener.running:
-            self.globalHotkeyListener.stop()
+        try:
+            if self.globalHotkeyListener and self.globalHotkeyListener.running:
+                self.globalHotkeyListener.stop()
+                self.globalHotkeyListener.join(timeout=0.5)
+                self.checkListenerIsDead()
+            else:
+                self.startGlobalHKlistener()
+        except Exception as e:
+            print(f"global hotkey listener crashed {e}")
 
-        self.globalHotkeyListener = keyboard.GlobalHotKeys({
-            self.recordGlobalHotkey:self.recordingStatus})
-        self.globalHotkeyListener.start()
+    def checkListenerIsDead(self):
+        if self.globalHotkeyListener and self.globalHotkeyListener.is_alive():
+            print("old listener still alive")
+            self.root.after(50,self.checkListenerIsDead)
+        else:
+            print("old listener has stopped")
+            self.globalHotkeyListener = None
+            self.startGlobalHKlistener()
+
+    def startGlobalHKlistener(self):
+        try:
+            self.globalHotkeyListener = keyboard.GlobalHotKeys({
+                    self.recordGlobalHotkey:self.recordingStatus})
+            self.globalHotkeyListener.start()
+        except Exception as e:
+            print(f"global hotkey listener crashed {e}") """
 
     def startListener(self):
         if self.mouseListener is None or not self.mouseListener.is_alive():
@@ -282,10 +278,13 @@ class MouseMacro:
         try:
             if self.isSettingHotkey:
                 self.collectHotkeyKey(key,"keyPress");
-            elif self.isRecording:
+
+            self.hotkeyManager(key,"keyPress")
+
+            if self.isRecording:
                 self.keyboardQueue.put(("keyPress",key,time.time()))
-                #print(f"testing vk {key.vk}")
-            print(f"pressed {self.getKeyName(key)}")
+                print(f"testing vk {key.vk}")
+            #print(f"pressed {self.getKeyName(key)}")
         except Exception as e:
             print(f"error when pressing {e}")
     
@@ -296,6 +295,9 @@ class MouseMacro:
                 self.collectHotkeyKey(key,"keyRelease")
                 return;
 
+            print(f"released {key}")
+            self.hotkeyManager(key,"keyRelease")
+
             if self.isRecording:
                 self.keyboardQueue.put(("keyRelease",key,time.time()))
 
@@ -304,25 +306,34 @@ class MouseMacro:
         except Exception as e:
             print(f"error when releasing {e}")
         
+    def hotkeyManager(self,key,keyType):
 
-    #sets the hotkey the moment the first key of the list gets released
-    """ def setRecordHotkey(self,key):
-        self.comboLimit = 3
-        if len(self.keyHotkeyList) < self.comboLimit:
-            #this is checking if the list is empty
-            #keyName = str(key).split(".")[-1]
-            if not self.keyHotkeyList:
-                if isinstance(key,keyboard.Key):
-                    self.keyHotkeyList.append(key)
-            else:
-                self.keyHotkeyList.append(key)
+        keyName = self.getKeyName(key)
+        currentHotkey = self.comboSet()
+
+        if keyType == "keyPress":
+            if not self.currentKeys:
+                if keyName in currentHotkey and isinstance(key,keyboard.Key) :
+                    self.currentKeys.add(keyName)
+                else:
+                    self.currentKeys.clear()
+
+            if len(self.currentKeys) == 1:
+                if keyName in currentHotkey and keyName not in self.currentKeys:
+                    self.currentKeys.add(keyName)
+
+            elif len(self.currentKeys) == 2:
+                self.currentKeys.clear()
+            print(f"current combo {self.currentKeys}")
+            if self.comboSet() == self.currentKeys:
+                self.recordingStatus()
+                return
                 
-        else:
-            #self.isSettingHotkey = False
-            hotkeyName = ""
-            for i in self.keyHotkeyList:
-                hotkeyName += i
-            print(hotkeyName) """
+        if keyType == "keyRelease":
+            self.currentKeys.discard(keyName)
+            print(f"combo after discard {self.currentKeys}")
+            return
+
 
     def setHotkeyMode(self, hotkeyType):
         if self.isSettingHotkey:
@@ -340,49 +351,67 @@ class MouseMacro:
                 self.statusVar.set("Press keys for record hotkey")
 
 
+    def comboSet(self):
+        return{
+            part.strip("<>").lower()
+            for part in self.recordGlobalHotkey.split("+")
+        }
+
     def collectHotkeyKey(self, key, keyType):
-        
+        print("entered collect")
         try:
-            
             listLength = len(self.keyHotkeyList)
+            print("checking length")
 
             if keyType == "keyRelease":
-                self.finalizeHotkey()
+                if listLength == 0:
+                    self.isSettingHotkey = False
+                    self.currentSettingHotkey = None
+                    self.setHotkeyMode("end")
+                else:
+                    self.finalizeHotkey()
+                
+                return
 
-            if listLength == 0:
-                if isinstance(key,keyboard.Key):
-                    self.keyHotkeyList.append((keyType,key))
-            
-            elif listLength == 1:
-                self.keyHotkeyList.append((keyType,key))
-                self.finalizeHotkey()
-            
+            else:
+
+                if listLength == 0:
+                    if isinstance(key,keyboard.Key):
+                        self.keyHotkeyList.append(key)
+                
+                elif listLength == 1:
+                    self.keyHotkeyList.append(key)
+                    self.finalizeHotkey()
+                print("reached collect bottom")
                 
         except Exception as e:
             print(f"Error collecting hotkey: {e}")
             self.finalizeHotkey()  # Finalize anyway to avoid getting stuck
 
     def finalizeHotkey(self):
-              
         # Create hotkey string in pynput format: <ctrl>+a
         hotkey_str = ""
-        for i, (_, key) in enumerate(self.keyHotkeyList,start=1):
+        print("inside finalize hotkey")
+        if self.keyHotkeyList:
+            for i, key in enumerate(self.keyHotkeyList,start=1):
+                print("inside loop")
+                #special keys
+                print("getting name")
+                keyName = self.getKeyName(key)
+                print("name obtained")
+                if isinstance(key,keyboard.Key):
+                    hotkey_str += f"<{keyName}>"
+                else:
+                    hotkey_str += keyName
+                
+                if i < len(self.keyHotkeyList):  # Add + between keys
+                    hotkey_str += "+"
             
-            #special keys
-            keyName = self.getKeyName(key)
-            if isinstance(key,keyboard.Key):
-                hotkey_str += f"<{keyName}>"
-            else:
-                hotkey_str += keyName
-            
-            if i < len(self.keyHotkeyList):  # Add + between keys
-                hotkey_str += "+"
+            # Apply the hotkey
+            if self.currentSettingHotkey == "record":
+                self.recordGlobalHotkey = hotkey_str
+                self.recordHotkey.config(text=hotkey_str, style="TButton")
         
-        # Apply the hotkey
-        if self.currentSettingHotkey == "record":
-            self.recordGlobalHotkey = hotkey_str
-            self.recordHotkey.config(text=hotkey_str, style="TButton")
-
             
         # Reset state
         self.isSettingHotkey = False
@@ -391,7 +420,8 @@ class MouseMacro:
         
         #print(self.recordGlobalHotkey)
         self.statusVar.set(f"Hotkey set to {self.recordGlobalHotkey}")
-        self.setGlobalHotkeyListener()
+        #self.root.after(1000, self.setGlobalHotkeyListener)
+
 
     def getKeyName(self,key):
         #CHARS
@@ -401,11 +431,12 @@ class MouseMacro:
             #charToVk = self.vkToChar(key.vk)
             #print(f"converted vk is {charToVk}")
 
-            if key.char is None or not key.char.isprintable():
-                #print("key is not printable")
+            if (key.char is None or not key.char.isprintable()) and self.vkMappingEnabled:
+
+                print("key is not printable")
                 return self.vkToChar(key.vk)
             else:
-                #print("key is printable")
+                print("key is printable")
                 return key.char
             
       

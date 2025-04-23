@@ -34,5 +34,10 @@ with Listener(on_press=on_press) as listener:
 
 keyName = "ctrl_l"
 
-if '_' in keyName:
-    print(f"{keyName.split("_"[0])}")
+test = set()
+test.add("one")
+test.add("two")
+
+if "one" in test:
+    print("here")
+
