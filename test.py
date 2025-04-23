@@ -32,7 +32,7 @@ with Listener(on_press=on_press) as listener:
     listener.join() """
 
 
-test = [1,2]
+keyName = "ctrl_l"
 
-print(len(test))
-
+if '_' in keyName:
+    print(f"{keyName.split("_"[0])}")

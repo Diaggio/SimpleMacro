@@ -4,6 +4,7 @@ from pynput import mouse,keyboard
 import queue
 import time
 import threading
+import sys,ctypes
 
 
 
@@ -18,6 +19,8 @@ class MouseMacro:
 
         self.recordedEvents = []
 
+        self.OS = sys.platform
+
         #MOUSE CONTROLS AND PARAMETERS
         self.mouseControl = mouse.Controller()
         self.mouseQueue = queue.Queue()
@@ -30,24 +33,17 @@ class MouseMacro:
 
 
         #KEYBOARD CONTROLS AND PARAMETERS
+        self.vk_mapping_enabled = False
         self.keyboardControl = keyboard.Controller()
         self.keyboardQueue = queue.Queue()
         self.keyboardListener = None
-        self.recordGlobalHotkey = "<ctrl>+a"
+        self.recordGlobalHotkey = "<ctrl>+@"
         self.globalHotkeyListener = None
         self.isSettingHotkey = False
         self.currentSettingHotkey = None
         self.keyHotkeyList = []
         self.listString = ""
         self.recordingControlKey = False
-        self.modifiersList = set()
-        self.modifierDisplayMap = {
-            keyboard.Key.ctrl_l: ("ctrl", 1), keyboard.Key.ctrl_r: ("ctrl", 1),
-            keyboard.Key.shift_l: ("shift", 2), keyboard.Key.shift_r: ("shift", 2),
-            keyboard.Key.alt_l: ("alt", 3), keyboard.Key.alt_r: ("alt", 3),
-            keyboard.Key.cmd_l: ("cmd", 4), keyboard.Key.cmd_r: ("cmd", 4),
-            keyboard.Key.alt_gr: ("alt_gr", 5),
-        }
 
         #MAIN MACRO CONTROLS
         self.isRecording = False
@@ -57,6 +53,10 @@ class MouseMacro:
         self.currentEventIndex = 0
         self.nextPlayback = None
         self.listEventsIndex = 0
+
+
+        #OS Setup
+        self.determineOS()
 
         #GUI SETUP
         self.createFrames()
@@ -86,6 +86,78 @@ class MouseMacro:
         with keyboard.Events() as events:
             for event in events:
                 print(f"Event: {event}")
+
+    def determineOS(self):
+        if self.OS == "win32":
+            self.initializeWindowsKeyMapping()
+        elif self.OS == "darwin":
+            self.initializeMacKeyMapping()
+
+
+    def initializeWindowsKeyMapping(self):
+        
+        
+        try:
+            from ctypes import wintypes
+
+            self.user32 = ctypes.WinDLL('user32', use_last_error=True)
+
+            # Set up function prototypes
+            self.GetKeyboardLayout = self.user32.GetKeyboardLayout
+            self.GetKeyboardLayout.argtypes = [wintypes.DWORD]
+            self.GetKeyboardLayout.restype = wintypes.HKL
+
+            self.MapVirtualKeyEx = self.user32.MapVirtualKeyExW
+            self.MapVirtualKeyEx.argtypes = [wintypes.UINT, wintypes.UINT, wintypes.HKL]
+            self.MapVirtualKeyEx.restype = wintypes.UINT
+
+            self.GetKeyboardState = self.user32.GetKeyboardState
+            self.GetKeyboardState.argtypes = [ctypes.POINTER(ctypes.c_ubyte * 256)]
+            self.GetKeyboardState.restype = wintypes.BOOL
+
+            self.ToUnicodeEx = self.user32.ToUnicodeEx
+            self.ToUnicodeEx.argtypes = [
+                wintypes.UINT, wintypes.UINT,
+                ctypes.POINTER(ctypes.c_ubyte * 256),
+                wintypes.LPWSTR, ctypes.c_int,
+                wintypes.UINT, wintypes.HKL
+            ]
+            self.ToUnicodeEx.restype = ctypes.c_int
+
+            # Constants
+            self.VK_CONTROL = 0x11
+            self.MAPVK_VK_TO_VSC = 0
+            
+            self.vk_mapping_enabled = True
+            print("Windows virtual key mapping initialized successfully")
+        except Exception as e:
+            print(f"Failed to initialize Windows virtual key mapping: {e}")
+
+    def initializeMacKeyMapping(self):
+        try:
+            from Quartz import (
+                TISCopyCurrentKeyboardLayoutInputSource,
+                TISGetInputSourceProperty,
+                kTISPropertyUnicodeKeyLayoutData
+            )
+            from CoreServices import (
+                UCKeyTranslate, kUCKeyActionDisplay,
+                kUCKeyTranslateNoDeadKeysMask, LMGetKbdType
+            )
+            
+            self.TISCopyCurrentKeyboardLayoutInputSource = TISCopyCurrentKeyboardLayoutInputSource
+            self.TISGetInputSourceProperty = TISGetInputSourceProperty
+            self.kTISPropertyUnicodeKeyLayoutData = kTISPropertyUnicodeKeyLayoutData
+            self.UCKeyTranslate = UCKeyTranslate
+            self.kUCKeyActionDisplay = kUCKeyActionDisplay
+            self.kUCKeyTranslateNoDeadKeysMask = kUCKeyTranslateNoDeadKeysMask
+            self.LMGetKbdType = LMGetKbdType
+            
+            self.vk_mapping_enabled = True
+            self.platform = "darwin"
+            print("macOS virtual key mapping initialized successfully")
+        except Exception as e:
+            print(f"Failed to initialize macOS virtual key mapping: {e}")
 
 
     def createFrames(self):
@@ -206,7 +278,7 @@ class MouseMacro:
             self.keyboardListener.start()
 
     def keyboardPress(self,key):
-        print(key)
+        #print(key)
         try:
             if self.isSettingHotkey:
                 self.collectHotkeyKey(key,"keyPress");
@@ -282,16 +354,8 @@ class MouseMacro:
                     self.keyHotkeyList.append((keyType,key))
             
             elif listLength == 1:
-                if isinstance(key,keyboard.KeyCode):
-                    self.keyHotkeyList.append((keyType,key))
-                    self.finalizeHotkey()
-                else:
-                    self.keyHotkeyList.append((keyType,key))
-            elif listLength == 2:
-                if isinstance(key,keyboard.KeyCode):
-                    self.keyHotkeyList.append((keyType,key))
-                    self.finalizeHotkey()
-                
+                self.keyHotkeyList.append((keyType,key))
+                self.finalizeHotkey()
             
                 
         except Exception as e:
@@ -305,11 +369,11 @@ class MouseMacro:
         for i, (_, key) in enumerate(self.keyHotkeyList,start=1):
             
             #special keys
+            keyName = self.getKeyName(key)
             if isinstance(key,keyboard.Key):
-                keyName = self.getKeyName(key)
                 hotkey_str += f"<{keyName}>"
             else:
-                hotkey_str += key.char
+                hotkey_str += keyName
             
             if i < len(self.keyHotkeyList):  # Add + between keys
                 hotkey_str += "+"
@@ -334,23 +398,66 @@ class MouseMacro:
         #print(key)
         if isinstance(key,keyboard.KeyCode):
             print(f"vk is {key.vk}")
+            #charToVk = self.vkToChar(key.vk)
+            #print(f"converted vk is {charToVk}")
 
             if key.char is None or not key.char.isprintable():
-                print("key is not printable")
-                print(f"char representation is {chr(key.vk)}")
+                #print("key is not printable")
+                return self.vkToChar(key.vk)
             else:
-                print("key is printable")
+                #print("key is printable")
+                return key.char
+            
       
-            return key.char if key.char is not None else f"vk:{key.vk}"
+            #return key.char if key.char is not None else self.vkToChar(key.vk)
         #control keys
         else:
-            print(f"control key {key}")
+            #print(f"control key {key}")
             """ if key in self.modifierDisplayMap:
                 return self.modifierDisplayMap[key][0]
             else:
                 #print(key.value) """
-            return str(key).split(".")[-1]
+            keyName = str(key).split(".")[-1]
+            if '_' in keyName:
+                keyName = keyName.split("_")[0]
+            print(f"keyname is {keyName}")
+            return keyName
 
+    def vkToChar(self,vk):
+        
+        if self.OS == "win32":    
+            try:
+                hkl = self.GetKeyboardLayout(0)
+                sc = self.MapVirtualKeyEx(vk, self.MAPVK_VK_TO_VSC, hkl)
+                state = (ctypes.c_ubyte * 256)()
+                self.GetKeyboardState(ctypes.byref(state))
+                # Clear Ctrl so the API will still return the "real" character
+                state[self.VK_CONTROL] = 0
+                buf = ctypes.create_unicode_buffer(4)
+                rc = self.ToUnicodeEx(vk, sc, state, buf, len(buf), 0, hkl)
+                return buf.value if rc > 0 else ''
+            except Exception as e:
+                print(f"Error in vk_to_char: {e}")
+                return None
+            
+
+        elif self.OS == "darwin":
+            try:
+                src = self.TISCopyCurrentKeyboardLayoutInputSource()
+                data = self.TISGetInputSourceProperty(src, self.kTISPropertyUnicodeKeyLayoutData)
+                layout = ctypes.cast(data, ctypes.POINTER(ctypes.c_uint8))
+                dead = ctypes.c_uint32(0)
+                buf = (ctypes.c_uint16 * 4)()
+                length = ctypes.c_size_t()
+                self.UCKeyTranslate(
+                    layout, vk, self.kUCKeyActionDisplay, 0,
+                    self.LMGetKbdType(), self.kUCKeyTranslateNoDeadKeysMask,
+                    ctypes.byref(dead), 4, ctypes.byref(length), buf
+                )
+                return ''.join(chr(buf[i]) for i in range(length.value))
+            except Exception as e:
+                print(f"Error in vk_to_char_mac: {e}")
+                return None
 
     def processKeyboardQueue(self):
         try:
@@ -368,7 +475,7 @@ class MouseMacro:
                 if eventType == "keyPress":
                         if isinstance(key,keyboard.KeyCode):
                             print(f"checking control key {key.char}")
-                            self.listString += key.char
+                            self.listString += keyName
                             self.addToListEvent(eventType,self.listString)
                         else:
                             self.recordingControlKey = True
@@ -484,7 +591,7 @@ class MouseMacro:
 
 
     def recordingStatus(self):
-        if not self.isRecording and not self.isSettingHotkeys:
+        if not self.isRecording and not self.isSettingHotkey:
             self.startRecording()
         else:
             self.stopRecording()
