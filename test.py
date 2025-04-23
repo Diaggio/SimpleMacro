@@ -32,4 +32,7 @@ with Listener(on_press=on_press) as listener:
     listener.join() """
 
 
+test = [1,2]
+
+print(len(test))
 

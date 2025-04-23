@@ -258,29 +258,39 @@ class MouseMacro:
             self.recordHotkey.config(text=self.recordGlobalHotkey)
             return
             #self.recordGlobalHotkey = self.getGlobalHotkey()
+        if not self.isRecording:
+            self.isSettingHotkey = True
+            self.currentSettingHotkey = hotkeyType
+            self.keyHotkeyList = []
 
-        self.isSettingHotkey = True
-        self.currentSettingHotkey = hotkeyType
-        self.keyHotkeyList = []
-
-        if hotkeyType == "record":
-            self.recordHotkey.config(text="Press Keys",style="RedText.TButton")
-            self.statusVar.set("Press keys for record hotkey")
+            if hotkeyType == "record":
+                self.recordHotkey.config(text="Press Keys",style="RedText.TButton")
+                self.statusVar.set("Press keys for record hotkey")
 
 
     def collectHotkeyKey(self, key, keyType):
-        MAX_KEYS = 3 
         
         try:
-            # If we have enough keys or Enter was pressed, finalize the hotkey
-            if len(self.keyHotkeyList) >= MAX_KEYS or keyType == "keyRelease":
-                self.finalizeHotkey()
             
-            keyName = str(key).split(".")[-1]
-            #print(keyName)
-            if key not in self.keyHotkeyList:
-                self.keyHotkeyList.append((keyType,key))
-                print(f"Added {key} to hotkey")
+            listLength = len(self.keyHotkeyList)
+
+            if keyType == "keyRelease":
+                self.finalizeHotkey()
+
+            if listLength == 0:
+                if isinstance(key,keyboard.Key):
+                    self.keyHotkeyList.append((keyType,key))
+            
+            elif listLength == 1:
+                if isinstance(key,keyboard.KeyCode):
+                    self.keyHotkeyList.append((keyType,key))
+                    self.finalizeHotkey()
+                else:
+                    self.keyHotkeyList.append((keyType,key))
+            elif listLength == 2:
+                if isinstance(key,keyboard.KeyCode):
+                    self.keyHotkeyList.append((keyType,key))
+                    self.finalizeHotkey()
                 
             
                 
@@ -296,9 +306,7 @@ class MouseMacro:
             
             #special keys
             if isinstance(key,keyboard.Key):
-                keyName = str(key).split(".")[-1]
-                if '_' in keyName:
-                    keyName = keyName.split('_')[0]
+                keyName = self.getKeyName(key)
                 hotkey_str += f"<{keyName}>"
             else:
                 hotkey_str += key.char
@@ -336,15 +344,13 @@ class MouseMacro:
             return key.char if key.char is not None else f"vk:{key.vk}"
         #control keys
         else:
-            if key in self.modifierDisplayMap:
+            print(f"control key {key}")
+            """ if key in self.modifierDisplayMap:
                 return self.modifierDisplayMap[key][0]
             else:
-                #print(key.value)
-                return str(key).split(".")[-1].split('_')[0]
+                #print(key.value) """
+            return str(key).split(".")[-1]
 
-
-    def getCharUpperLower(self):
-        pass
 
     def processKeyboardQueue(self):
         try:
@@ -478,7 +484,7 @@ class MouseMacro:
 
 
     def recordingStatus(self):
-        if not self.isRecording:
+        if not self.isRecording and not self.isSettingHotkeys:
             self.startRecording()
         else:
             self.stopRecording()
