@@ -38,6 +38,10 @@ test = set()
 test.add("one")
 test.add("two")
 
-if "one" in test:
+test2 = []
+test2.append("hello")
+test2.append("morning")
+
+if "morning" in test2:
     print("here")
 
