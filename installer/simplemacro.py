@@ -45,6 +45,8 @@ class MouseMacro:
         self.listString = ""
         self.recordingControlKey = False
         self.currentKeys = set()
+        self.awaitingHotkey = False
+        self.hotkeyModifier = None
 
         #MAIN MACRO CONTROLS
         self.isRecording = False
@@ -66,7 +68,6 @@ class MouseMacro:
         
     
         self.startListener()
-        self.setGlobalHotkeyListener()
         self.processMouseQueue()
         self.processKeyboardQueue()
         #self.processMouseDisplayQueue()
@@ -232,7 +233,7 @@ class MouseMacro:
         self.recordedEvents = []
        
 
-  """   #hotkey listener needs to be restarted everytime a new hotkey is set
+    """#hotkey listener needs to be restarted everytime a new hotkey is set
     #as it only stores the values when created
     def setGlobalHotkeyListener(self):
         try:
@@ -279,12 +280,16 @@ class MouseMacro:
             if self.isSettingHotkey:
                 self.collectHotkeyKey(key,"keyPress");
 
-            self.hotkeyManager(key,"keyPress")
+            
+            action = self.hotkeyManager(key,"keyPress")
 
-            if self.isRecording:
-                self.keyboardQueue.put(("keyPress",key,time.time()))
-                print(f"testing vk {key.vk}")
-            #print(f"pressed {self.getKeyName(key)}")
+            if action == "catch":
+                return
+            
+            elif action == "pass":
+                if self.isRecording:
+                    self.keyboardQueue.put(("keyPress",key,time.time()))
+                #print(f"pressed {self.getKeyName(key)}")
         except Exception as e:
             print(f"error when pressing {e}")
     
@@ -298,7 +303,7 @@ class MouseMacro:
             print(f"released {key}")
             self.hotkeyManager(key,"keyRelease")
 
-            if self.isRecording:
+            if self.isRecording and not self.isHotkey:
                 self.keyboardQueue.put(("keyRelease",key,time.time()))
 
             #print(f"released {self.getKeyName(key)}")
@@ -306,6 +311,8 @@ class MouseMacro:
         except Exception as e:
             print(f"error when releasing {e}")
         
+
+
     def hotkeyManager(self,key,keyType):
 
         keyName = self.getKeyName(key)
