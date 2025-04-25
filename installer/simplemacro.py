@@ -237,13 +237,6 @@ class MouseMacro:
             self.mouseListener = mouse.Listener(on_move=self.mouseMove,
                                            on_click=self.mouseClick)
             self.mouseListener.start()
-            #self.mouseListener.stop()
-        """ if self.keyboardListener is None or not self.keyboardListener.is_alive():
-            self.keyboardListener = keyboard.Listener(on_press=self.keyboardPress,
-                                                      on_release=self.keyboardRelease)
-        
-            
-            self.keyboardListener.start() """
         
         self.listener_proc = mp.Process(
             target=listener.run_listener,
@@ -252,59 +245,7 @@ class MouseMacro:
         )
         self.listener_proc.start()
 
-    def keyboardPress(self,key):
-        """ print(f"pressed {key}")
-        try:
-            if self.isSettingHotkey:
-                self.collectHotkeyKey(key,"keyPress");
-
-            action = self.hotkeyManager(("keyPress",key,time.time()))
-
-            if action == "catch":
-                return
-            
-            elif action == "pass" and self.isRecording:
-                    self.keyboardQueue.put(("keyPress",key,time.time()))
-                #print(f"pressed {self.getKeyName(key)}")
-        except Exception as e:
-            print(f"error when pressing {e}") """
-        
-        self.rawKeys.put(("keyPress",key,time.time()))
-    
-    def keyboardRelease(self,key):
-
-        """ try:
-            if key == keyboard.Key.caps_lock:
-                return
-            if isinstance(key, keyboard.KeyCode) and getattr(key, "vk", None) == 0:
-                return
-
-            try:
-                if self.isSettingHotkey:
-                    self.collectHotkeyKey(key,"keyRelease")
-                    return;
-
-                print(f"released {key}")
-            
-                action = self.hotkeyManager(("keyRelease",key,time.time()))
-                print(f"caps object is {key}")
-                if action == "catch":
-                    return
-                
-                if self.isRecording:
-                    print("inside try")
-                    self.keyboardQueue.put(("keyRelease",key,time.time()))
-                #print(f"released {self.getKeyName(key)}")
-        
-            except Exception as e:
-                print(f"error when releasing {e}")
-        except Exception:
-            print("=== keyboardRelease EXCEPTION ===")
-            traceback.print_exc() """
-        
-        self.rawKeys.put(("keyRelease",key,time.time()))
-
-
+   
     def processRawKeys(self):
         # 1) Drain all pending raw events
         while True:
@@ -313,26 +254,17 @@ class MouseMacro:
                 print(f"key {key} event {eventType}")
             except queue.Empty:
                 break
-
-        
             
-            # 2) Handle each event in its own try/except
             try:
                 if eventType == "keyPress":
-                    # your press logic here…
                     if self.isSettingHotkey:
                         self.collectHotkeyKey(key, "keyPress")
                     else:
                         action = self.hotkeyManager(("keyPress", key, ts))
                         if action == "pass" and self.isRecording:
                             self.keyboardQueue.put(("keyPress", key, ts))
-                    # (no returns — we want to keep draining)
 
                 elif eventType == "keyRelease":
-                    # drop phantom caps/vk0 if you want
-                    from pynput.keyboard import KeyCode, Key
-                    if key == Key.caps_lock or (isinstance(key, KeyCode) and key.char is None):
-                        continue
 
                     if self.isSettingHotkey:
                         self.collectHotkeyKey(key, "keyRelease")
@@ -554,7 +486,7 @@ class MouseMacro:
         try:
             while True:
                 eventData = self.keyboardQueue.get_nowait()
-                eventType, key, _ = eventData
+                eventType, key, ts = eventData
                 keyName = self.getKeyName(key)
                 """ if keyName == "caps":
                     if self.isCaps:
@@ -563,14 +495,12 @@ class MouseMacro:
                         self.isCaps = True """
                 
                 # Add to recorded events list
+                print(f"appending {key} at {time.ctime(ts)}")
                 self.recordedEvents.append(eventData)
                 #print("event data received")
                 self.firstControlKey = None
-                print(f"before keypress index is {self.listEventsIndex}")
-                print(f"processing key {key} on {eventType}")
                 # Update UI
                 if eventType == "keyPress":
-                        print(f"inside process kb q string is {self.listString} and index {self.listEventsIndex}")
                         if isinstance(key,keyboard.KeyCode):
                             #print(f"checking control key {key.char}")
                             self.listString += keyName
@@ -675,7 +605,7 @@ class MouseMacro:
 
     def startRecording(self):
         if not self.isRecording:
-            #print("recording started")
+            print("recording started")
             self.isRecording = True
             self.clearList()
             self.record.config(text="Stop recording", style="RedText.TButton")
@@ -684,7 +614,7 @@ class MouseMacro:
 
     def stopRecording(self):
         if self.isRecording:
-            #print("recording stopped")
+            print("recording stopped")
             self.isRecording = False
             self.record.config(text="Start recording",style="TButton")
             self.statusVar.set("Recording Stopped")
@@ -704,6 +634,7 @@ class MouseMacro:
             self.stopMacro()
 
     def runMacro(self):
+        print("running macro")
         self.macroRunning = True
         if not self.recordedEvents:
             print("no recorded events")
