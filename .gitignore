@@ -2,5 +2,6 @@
 .venv/
 installer/*
 !installer/simplemacro.py
+!installer/listener.py
 
 tempCodeRunnerFile.py
