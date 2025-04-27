@@ -712,7 +712,20 @@ class MouseMacro:
             self.mouseControl.position = (x,y)
         elif eventType == "keyPress":
             _, key, _ = currentEvent
-            self.keyboardControl.press(key)
+            if sys.platform == "darwin":
+                if key == keyboard.Key.caps_lock:
+                    self.toggleCaps()
+
+                if self.isCaps:
+                    with self.keyboardControl.pressed(keyboard.Key.shift):
+                        self.keyboardControl.press(key)
+                        time.sleep(0.02)
+                else:
+                    self.keyboardControl.press(key)
+                    time.sleep(0.02)
+                        
+            else:
+                self.keyboardControl.press(key)
         elif eventType == "keyRelease":
             _, key, _ = currentEvent
             self.keyboardControl.release(key)
@@ -734,7 +747,10 @@ class MouseMacro:
         self.nextPlayback = self.root.after(delay,self.macroLogic)
 
 
-        
+    def toggleCaps(self):
+        self.isCaps = not self.isCaps
+
+
     def macroFinished(self):
         print("macro finished all repetitions")
         self.statusVar.set("macro finished all repetitions")
