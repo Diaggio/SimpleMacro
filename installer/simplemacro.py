@@ -8,8 +8,17 @@ import queue
 import time
 import sys,ctypes
 import traceback
-import listener
+#import listener
 import multiprocessing as mp
+
+def run_listener(raw_queue):
+    def on_press(key):
+        raw_queue.put(("keyPress", key,time.time()))
+    def on_release(key):
+        raw_queue.put(("keyRelease", key,time.time()))
+
+    with keyboard.Listener(on_press=on_press, on_release=on_release) as listener:
+        listener.join()
 
 
 class MouseMacro:
@@ -227,7 +236,7 @@ class MouseMacro:
             self.mouseListener.start()
         
         self.listener_proc = mp.Process(
-            target=listener.run_listener,
+            target=run_listener,
             args=(self.rawKeys,),
             daemon=True
         )
@@ -544,7 +553,7 @@ class MouseMacro:
                         
                         #modifier key
                         else:
-                            self.listEventsIndex +=1
+                            self.advanceIndex()
                             self.listString = ""
                             self.listString += keyName
                             self.addToListEvent(eventType,keyName)
@@ -552,7 +561,7 @@ class MouseMacro:
                 #keyRelease
                 else:
                     if isinstance(key,keyboard.Key):
-                        self.listEventsIndex+=1
+                        self.advanceIndex()
                         self.listString = ""
               
 
@@ -562,6 +571,11 @@ class MouseMacro:
             # Schedule the next check
             self.root.after(100, self.processKeyboardQueue)
     
+    #prevents the index for the list box to increment farther than the last element
+    def advanceIndex(self):
+        if self.listEventsIndex + 1 <= self.eventList.size():
+            self.listEventsIndex += 1
+
     def addToListEvent(self,eventType,item):
         
         if eventType == "keyPress":
