@@ -6,7 +6,6 @@ import tkinter.ttk as ttk
 from pynput import mouse,keyboard
 import queue
 import time
-import threading
 import sys,ctypes
 import traceback
 import listener
@@ -29,27 +28,20 @@ class MouseMacro:
         #MOUSE CONTROLS AND PARAMETERS
         self.mouseControl = mouse.Controller()
         self.mouseQueue = queue.Queue()
-        self.mousePosQueue = queue.Queue()
         self.mouseListener = None
-        self.mouseQueueThrottle = 0.0 
-        #self.mousePosQueueThrottle = 0.0 #utilized for displaying mouse position on GUI - lagging on mac
-        self.lastMousePos = None
-        self.mouseDisplaySchedule = False
 
 
         #KEYBOARD CONTROLS AND PARAMETERS
         self.vkMappingEnabled = False
         self.keyboardControl = keyboard.Controller()
         self.keyboardQueue = queue.Queue()
-        self.keyboardListener = None
-        self.recordGlobalHotkey = "<ctrl>+@"
-        self.stopGlobalHotkey = "<ctrl>+#"
-        self.globalHotkeyListener = None
+        #self.keyboardListener = None
+        self.recordGlobalHotkey = None
+        self.stopGlobalHotkey = None
         self.isSettingHotkey = False
         self.currentSettingHotkey = None
         self.keyHotkeyList = []
         self.listString = ""
-        self.recordingControlKey = False
         self.currentKeys = []
         self.caughtKeys = []
         self.isCaps = False
@@ -81,17 +73,12 @@ class MouseMacro:
         self.processKeyboardQueue()
         self.lastTime = 0
         
-
-        #threading.Thread(target=self.debugKeyEvents, daemon=True).start()
-
         self.root.protocol("WM_DELETE_WINDOW", self.closeApp)
 
 
     def determineOS(self):
         if self.OS == "win32":
             self.initializeWindowsKeyMapping()
-        """ elif self.OS == "darwin":
-            self.initializeMacKeyMapping() """
 
 
     def initializeWindowsKeyMapping(self):
@@ -142,18 +129,16 @@ class MouseMacro:
     def createWidgets(self):
         #Left Frame
         self.eventListLabel = ttk.Label(self.leftFrame,text="Events",anchor="center")
-        self.eventList = tk.Listbox(self.leftFrame,width=75)
+        self.eventList = tk.Listbox(self.leftFrame,width=50)
         self.eventListScrollbar = ttk.Scrollbar(self.leftFrame, orient=tk.VERTICAL, command=self.eventList.yview)
         self.eventList.config(yscrollcommand=self.eventListScrollbar.set)
 
-        
-        #self.update = ttk.Button(self.buttonFrame,text="Update")
         self.clear = ttk.Button(self.buttonFrame,text="Clear",command=self.clearListButton)
         
         #Right Frame
-        self.recordHotkeyLabel = ttk.Label(self.rightFrame,text="Set Record Hotkey",anchor="center")
+        self.recordHotkeyLabel = ttk.Label(self.rightFrame,text="Start/Stop Recording Hotkey",anchor="center")
         self.recordHotkey = ttk.Button(self.rightFrame,text="click to set", width=15, command= lambda: self.setHotkeyMode("record"))
-        self.stopMacroHotkeyLabel = ttk.Label(self.rightFrame,text="Stop Macro",anchor="center")
+        self.stopMacroHotkeyLabel = ttk.Label(self.rightFrame,text="Start/Stop Macro Hotkey",anchor="center")
         self.stopMacroHotkeyButton = ttk.Button(self.rightFrame,text="click to set",width=15, command= lambda: self.setHotkeyMode("stop"))
         self.record = ttk.Button(self.rightFrame,text="Start Recording",command=self.recordingStatus)
         self.repeatLabel = ttk.Label(self.rightFrame,text="Enter number of macro repetitions",anchor="center")
@@ -163,9 +148,6 @@ class MouseMacro:
         self.speedVar = tk.StringVar(value="1x")
         self.speed = ttk.Combobox(self.rightFrame,textvariable=self.speedVar,values=["1x","2x"],state="readonly",justify="center")
         self.start = ttk.Button(self.rightFrame,text="Run Macro", command=self.macroController)
-        #self.mousePosVar = tk.StringVar()
-        #self.mousePosVar.set("Inactive")
-        #self.mousePosLabel = tk.Label(self.rightFrame,textvariable=self.mousePosVar)
         self.statusVar = tk.StringVar()
         self.statusVar.set("Status: Idle")
         self.statusLabel = ttk.Label(self.rightFrame,textvariable=self.statusVar,anchor="center")
@@ -200,9 +182,8 @@ class MouseMacro:
 
 
         self.eventListLabel.grid(row=0,column=0,columnspan=2,sticky="ew")
-        self.eventList.grid(row=1,column=0,columnspan=2,sticky="nswe")
+        self.eventList.grid(row=1,column=0,columnspan=2,padx=(10,0),sticky="nswe")
         self.eventListScrollbar.grid(row=1,column=3,sticky='ns')
-        #self.update.grid(row=0, column=1, padx=5, pady=5)
         self.clear.grid(row=0, column=1)
 
         
@@ -294,27 +275,42 @@ class MouseMacro:
         if self.isSettingHotkey:
             return None
 
+        if not self.recordGlobalHotkey and not self.stopGlobalHotkey:
+            return "pass"
+
         keyType,key,_ = bundle
 
         keyName = self.getKeyName(key)
-        currentRecordHotkey = self.comboSet("record")
-        currentStopHotkey = self.comboSet("stop")
+        currentRecordHotkey = ""
+        currentStopHotkey = ""
+        if self.recordGlobalHotkey:
+            currentRecordHotkey = self.comboSet("record")
+        if self.stopGlobalHotkey:
+            currentStopHotkey = self.comboSet("stop")
         #print(f"hotkey manager name {keyName} and set {currentRecordHotkey} ")
 
         if keyType == "keyPress":
             if not self.currentKeys:
                 #check if the first key is a modifier and if its part of the hotkey
-                if (keyName in currentRecordHotkey or keyName in currentStopHotkey) and isinstance(key,keyboard.Key):
+                if isinstance(key,keyboard.Key):
                     #if the hotkey is only 1 key, trigger and catch
-                    if len(currentRecordHotkey) == 1:
+                    if currentRecordHotkey and len(currentRecordHotkey) == 1 and keyName in currentRecordHotkey:
                         self.recordingStatus()
                         return "catch"
-                    
-                    #oherwise append to current key and store its bundle for future q add
-                    else:
+                    elif currentStopHotkey and len(currentStopHotkey) == 1 and keyName in currentStopHotkey:
+                        self.macroController()
+                        return "catch"
+                        
+                    #if the modifier belongs to part of one of the hotkeys,append
+                    elif (currentRecordHotkey and keyName in currentRecordHotkey) or (currentStopHotkey and keyName in currentStopHotkey):
                         self.currentKeys.append(keyName)
                         self.caughtKeys.append(bundle)
                         return "catch"
+                    
+
+                    #the modifier doesnt belong to any hotkey
+                    else:
+                        return "pass"
                 #if its not a modifier, move on
                 else:
                     self.currentKeys.clear()
@@ -328,6 +324,11 @@ class MouseMacro:
                     #add to current keys so they can be caught on release, trigger hotkey and catch
                     self.currentKeys.append(keyName)
                     self.recordingStatus()
+                    self.caughtKeys.clear()
+                    return "catch"
+                elif keyName in currentStopHotkey and keyName not in self.currentKeys:
+                    self.currentKeys.append(keyName)
+                    self.macroController()
                     self.caughtKeys.clear()
                     return "catch"
 
@@ -358,8 +359,11 @@ class MouseMacro:
         #for when the button is pressed instead of the hotkey itself
         if self.isSettingHotkey:
             self.toggleHotkeyMode()
-            self.recordHotkey.config(text=self.recordGlobalHotkey, style="TButton")
-            self.stopMacroHotkeyButton.config(text=self.stopGlobalHotkey, style="TButton")
+            if hotkeyType == "record":
+                self.recordHotkey.config(text=self.recordGlobalHotkey, style="TButton")
+            elif hotkeyType == "stop":
+                self.stopMacroHotkeyButton.config(text=self.stopGlobalHotkey, style="TButton")
+                    
             return
             
 
@@ -375,6 +379,8 @@ class MouseMacro:
             if not self.isSettingHotkey:
                 self.toggleHotkeyMode()
                 if not self.isRecording:
+                    self.currentSettingHotkey = hotkeyType
+                    self.keyHotkeyList = []
                     self.stopMacroHotkeyButton.config(text="Press Keys",style="RedText.TButton")
                     self.statusVar.set("Press keys for Stop Macro hotkey")
         elif hotkeyType == "failed":
@@ -443,21 +449,27 @@ class MouseMacro:
             
             # Apply the hotkey
             if self.currentSettingHotkey == "record":
-                self.recordGlobalHotkey = hotkey_str 
-                self.recordHotkey.config(text=hotkey_str, style="TButton")
+                if hotkey_str != self.stopGlobalHotkey:
+                    self.recordGlobalHotkey = hotkey_str 
+                    self.recordHotkey.config(text=hotkey_str, style="TButton")
+                    self.statusVar.set(f"Hotkey set to {self.recordGlobalHotkey}")
+                else:
+                    self.statusVar.set("Cannot set duplicate hotkey")
+                    self.setHotkeyMode(self.currentSettingHotkey)
             elif self.currentSettingHotkey == "stop":
-                self.stopGlobalHotkey = hotkey_str
-                self.stopMacroHotkeyButton.config(text=hotkey_str, style="TButton")
+                if hotkey_str != self.recordGlobalHotkey:
+                    self.stopGlobalHotkey = hotkey_str
+                    self.stopMacroHotkeyButton.config(text=hotkey_str, style="TButton")
+                    self.statusVar.set(f"Hotkey set to {self.stopGlobalHotkey}")
+                else:
+                    self.statusVar.set("Cannot set duplicate hotkey")
+                    self.setHotkeyMode(self.currentSettingHotkey)
         
             
         # Reset state
         self.toggleHotkeyMode()
         self.currentSettingHotkey = None
         self.keyHotkeyList = []
-        
-        #print(self.recordGlobalHotkey)
-        self.statusVar.set(f"Hotkey set to {self.recordGlobalHotkey}")
-        #self.root.after(1000, self.setGlobalHotkeyListener)
 
 
     def getKeyName(self,key):
@@ -511,23 +523,18 @@ class MouseMacro:
                 print(f"Error in vk_to_char: {e}")
                 return None
 
+    #This adds to the event list box
     def processKeyboardQueue(self):
         try:
             while True:
                 eventData = self.keyboardQueue.get_nowait()
                 eventType, key, ts = eventData
                 keyName = self.getKeyName(key)
-                """ if keyName == "caps":
-                    if self.isCaps:
-                        self.isCaps = False
-                    else:
-                        self.isCaps = True """
                 
                 # Add to recorded events list
                 print(f"appending {key} at {time.ctime(ts)}")
                 self.recordedEvents.append(eventData)
                 #print("event data received")
-                self.firstControlKey = None
                 # Update UI
                 if eventType == "keyPress":
                         if isinstance(key,keyboard.KeyCode):
@@ -537,23 +544,14 @@ class MouseMacro:
                         
                         #modifier key
                         else:
-                            self.recordingControlKey = True
-
-                            if self.firstControlKey is None:
-                                self.firstControlKey = keyName
-
-                            if self.listString: 
-                                self.listEventsIndex +=1
-                                self.listString = ""
+                            self.listEventsIndex +=1
+                            self.listString = ""
                             self.listString += keyName
                             self.addToListEvent(eventType,keyName)
+
                 #keyRelease
                 else:
                     if isinstance(key,keyboard.Key):
-                        if keyName == self.firstControlKey:
-                            self.firstControlKey = None
-                        self.recordingControlKey = False
-                        #self.addToListEvent(eventType,self.listString)
                         self.listEventsIndex+=1
                         self.listString = ""
               
@@ -583,12 +581,7 @@ class MouseMacro:
                 print(f"error adding {button} click {x},{y}")
 
     def mouseMove(self,x,y):
-        now = time.time()
-            
         if self.isRecording:
-            recordInterval = 0.05
-            if now - self.mouseQueueThrottle > recordInterval:
-                self.mousePosQueueThrottle = now
             try:
                 self.mouseQueue.put(("move",x,y,time.time()))
             except Exception as e:
@@ -620,7 +613,7 @@ class MouseMacro:
 
 
     def recordingStatus(self):
-        if not self.isRecording and not self.isSettingHotkey:
+        if not self.isRecording and not self.isSettingHotkey and not self.macroRunning:
             self.startRecording()
         else:
             self.stopRecording()
@@ -644,15 +637,11 @@ class MouseMacro:
             self.statusVar.set("Recording Stopped")
 
 
-            if self.recordedEvents:
-                lastEvent = self.recordedEvents[-1]
-                if lastEvent[0] == "click":
-                    self.recordedEvents.pop()
-                    self.eventList.delete(tk.END)
-
     def macroController(self):
         
         if not self.macroRunning:
+            if self.isRecording:
+                self.recordingStatus()
             self.runMacro()
         else:
             self.stopMacro()

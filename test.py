@@ -1,4 +1,4 @@
-# save this as test_pynput_caps.py
+""" # save this as test_pynput_caps.py
 import sys
 from pynput import keyboard
 import time
@@ -48,4 +48,11 @@ finally:
     else:
         print("Listener already stopped or not started.")
 
-print("Script finished.")
+print("Script finished.") """
+
+test = ""
+
+if test:
+    print("here")
+else:
+    print("not here")
