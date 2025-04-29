@@ -164,8 +164,8 @@ class MouseMacro:
     def setGrid(self):
 
         #root configs
-        """ self.root.columnconfigure(0, weight=1)
-        self.root.columnconfigure(1,weight=1) """
+        self.root.columnconfigure(0, weight=1)
+        self.root.columnconfigure(1,weight=0)
         self.root.rowconfigure(0,weight=1)
 
         #frames
@@ -192,7 +192,7 @@ class MouseMacro:
 
         self.eventListLabel.grid(row=0,column=0,columnspan=2,sticky="ew")
         self.eventList.grid(row=1,column=0,columnspan=2,padx=(10,0),sticky="nswe")
-        self.eventListScrollbar.grid(row=1,column=3,sticky='ns')
+        self.eventListScrollbar.grid(row=1,column=2,sticky='ns')
         self.clear.grid(row=0, column=1)
 
         
@@ -200,12 +200,12 @@ class MouseMacro:
         self.rightFrame.rowconfigure(8, weight=1)
         self.rightFrame.rowconfigure(9, weight=0)
         self.rightFrame.columnconfigure(0, weight=1)
-        self.rightFrame.columnconfigure(1, weight=1)
+        self.rightFrame.columnconfigure(1, weight=0)
 
         self.recordHotkeyLabel.grid(row=0, column=0, sticky="ew", padx=5, pady=2)
         self.stopMacroHotkeyLabel.grid(row=0, column=1, sticky="ew", padx=5, pady=2)
         self.recordHotkey.grid(row=1, column=0, sticky="w", padx=5, pady=2)
-        self.stopMacroHotkeyButton.grid(row=1, column=1, sticky="w", padx=5, pady=2)
+        self.stopMacroHotkeyButton.grid(row=1, column=1, sticky="e", padx=5, pady=2)
 
         self.record.grid(row=2, column=0, columnspan=2, sticky="ew", padx=5, pady=2)
         self.repeatLabel.grid(row=3, column=0, columnspan=2, sticky="ew", padx=5, pady=2)
