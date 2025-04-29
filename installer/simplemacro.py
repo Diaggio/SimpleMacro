@@ -1,5 +1,5 @@
-""" import faulthandler
-faulthandler.enable() """
+import faulthandler
+faulthandler.enable()
 
 import tkinter as tk
 import tkinter.ttk as ttk
@@ -45,8 +45,8 @@ class MouseMacro:
         self.keyboardControl = keyboard.Controller()
         self.keyboardQueue = queue.Queue()
         #self.keyboardListener = None
-        self.recordGlobalHotkey = None
-        self.stopGlobalHotkey = None
+        self.recordGlobalHotkey = "<ctrl>+1"
+        self.stopGlobalHotkey = "<esc>"
         self.isSettingHotkey = False
         self.currentSettingHotkey = None
         self.keyHotkeyList = []
@@ -146,9 +146,9 @@ class MouseMacro:
         
         #Right Frame
         self.recordHotkeyLabel = ttk.Label(self.rightFrame,text="Start/Stop Recording Hotkey",anchor="center")
-        self.recordHotkey = ttk.Button(self.rightFrame,text="click to set", width=15, command= lambda: self.setHotkeyMode("record"))
+        self.recordHotkey = ttk.Button(self.rightFrame,text=f"{self.recordGlobalHotkey}", width=15, command= lambda: self.setHotkeyMode("record"))
         self.stopMacroHotkeyLabel = ttk.Label(self.rightFrame,text="Start/Stop Macro Hotkey",anchor="center")
-        self.stopMacroHotkeyButton = ttk.Button(self.rightFrame,text="click to set",width=15, command= lambda: self.setHotkeyMode("stop"))
+        self.stopMacroHotkeyButton = ttk.Button(self.rightFrame,text=f"{self.stopGlobalHotkey}",width=15, command= lambda: self.setHotkeyMode("stop"))
         self.record = ttk.Button(self.rightFrame,text="Start Recording",command=self.recordingStatus)
         self.repeatLabel = ttk.Label(self.rightFrame,text="Enter number of macro repetitions",anchor="center")
         self.repeatVar = tk.StringVar(value=1)
@@ -387,7 +387,7 @@ class MouseMacro:
 
             button = (self.recordHotkey if hotkeyType=="record" else self.stopMacroHotkeyButton)
             button.config(text="Press Keys", style="RedText.TButton")
-            self.statusVar.set(f"Press keys for {'Record' if hotkeyType=='record' else 'Stop'} hotkey")
+            self.statusVar.set(f"Press keys to enter new start/stop {'Recording' if hotkeyType=='record' else 'Macro'} hotkey")
     
     def cancelSettingButtons(self,hotkeyType):
         self.toggleHotkeyMode()
@@ -431,12 +431,20 @@ class MouseMacro:
             else:
 
                 if listLength == 0:
+                    if self.OS == "darwin" and key == keyboard.Key.shift \
+                        or key == keyboard.Key.shift_l or key == keyboard.Key.shift_r:
+                        self.statusVar.set("<shift> not allowed on Mac as a hotkey")
+                        self.setHotkeyMode("failed")
                     if isinstance(key,keyboard.Key):
                         self.keyHotkeyList.append(key)
                 
                 elif listLength == 1:
-                    self.keyHotkeyList.append(key)
-                    self.finalizeHotkey()
+                    if key == self.keyHotkeyList[0]:
+                        self.statusVar.set("Cannot repeat the same modifier")
+                        self.setHotkeyMode("failed")
+                    else:
+                        self.keyHotkeyList.append(key)
+                        self.finalizeHotkey()
                 
         except Exception as e:
             print(f"Error collecting hotkey: {e}")
@@ -455,7 +463,8 @@ class MouseMacro:
                 if isinstance(self.keyHotkeyList[0],keyboard.Key) and keyName in otherSet:
                     self.statusVar.set(f"Cannot use single <{keyName}> because the other hotkey is using it")
                     self.setHotkeyMode("failed")
-                    return
+                
+                return
 
 
             hotkey_str = ""
