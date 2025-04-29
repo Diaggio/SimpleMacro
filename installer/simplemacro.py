@@ -1,5 +1,5 @@
-import faulthandler
-faulthandler.enable()
+""" import faulthandler
+faulthandler.enable() """
 
 import tkinter as tk
 import tkinter.ttk as ttk
@@ -366,36 +366,37 @@ class MouseMacro:
 
     def setHotkeyMode(self, hotkeyType):
         #for when the button is pressed instead of the hotkey itself
-        if self.isSettingHotkey:
-            self.toggleHotkeyMode()
-            if hotkeyType == "record":
-                self.recordHotkey.config(text=self.recordGlobalHotkey, style="TButton")
-            elif hotkeyType == "stop":
-                self.stopMacroHotkeyButton.config(text=self.stopGlobalHotkey, style="TButton")
-                    
-            return
-            
+        if self.isSettingHotkey and hotkeyType in ("record", "stop") and hotkeyType != self.currentSettingHotkey:
+            self.cancelSettingButtons(self.currentSettingHotkey)
 
-        if hotkeyType == "record":
-            if not self.isSettingHotkey:
-                self.toggleHotkeyMode()
-                if not self.isRecording:
-                    self.currentSettingHotkey = hotkeyType
-                    self.keyHotkeyList = []
-                    self.recordHotkey.config(text="Press Keys",style="RedText.TButton")
-                    self.statusVar.set("Press keys for Record hotkey")
-        elif hotkeyType == "stop":
-            if not self.isSettingHotkey:
-                self.toggleHotkeyMode()
-                if not self.isRecording:
-                    self.currentSettingHotkey = hotkeyType
-                    self.keyHotkeyList = []
-                    self.stopMacroHotkeyButton.config(text="Press Keys",style="RedText.TButton")
-                    self.statusVar.set("Press keys for Stop Macro hotkey")
-        elif hotkeyType == "failed":
-            self.toggleHotkeyMode()
-            self.recordHotkey.config(text="try again", style="TButton")
-            self.statusVar.set("Failed setting hotkey")
+        elif self.isSettingHotkey and hotkeyType == self.currentSettingHotkey:
+            self.cancelSettingButtons(hotkeyType)
+            return
+
+        if hotkeyType == "failed":
+            button = (self.recordHotkey if self.currentSettingHotkey=="record" else self.stopMacroHotkeyButton)
+            button.config(text="Try again", style="TButton")
+            #self.statusVar.set("Failed setting hotkey")
+            self.cancelSettingButtons(self.currentSettingHotkey)
+            return
+
+        if hotkeyType in ("record", "stop") and not self.isSettingHotkey:
+            self.isSettingHotkey = True
+            self.currentSettingHotkey = hotkeyType
+            self.keyHotkeyList = []
+
+            button = (self.recordHotkey if hotkeyType=="record" else self.stopMacroHotkeyButton)
+            button.config(text="Press Keys", style="RedText.TButton")
+            self.statusVar.set(f"Press keys for {'Record' if hotkeyType=='record' else 'Stop'} hotkey")
+    
+    def cancelSettingButtons(self,hotkeyType):
+        self.toggleHotkeyMode()
+
+        button = (self.recordHotkey if hotkeyType == "record" else self.stopMacroHotkeyButton)
+        text = (self.recordGlobalHotkey if hotkeyType=="record" else self.stopGlobalHotkey)
+        button.config(text=text or "click to set", style="TButton")
+        self.currentSettingHotkey = None
+        self.keyHotkeyList = []
 
     def toggleHotkeyMode(self):
         self.isSettingHotkey = not self.isSettingHotkey
@@ -442,18 +443,32 @@ class MouseMacro:
             self.finalizeHotkey()  # Finalize anyway to avoid getting stuck
 
     def finalizeHotkey(self):
-        # Create hotkey string in pynput format: <ctrl>+a
-        hotkey_str = ""
+        if self.currentSettingHotkey == "record":
+            otherSet = self.comboSet("stop") if self.stopGlobalHotkey else set()
+        else:  # setting "stop"
+            otherSet = self.comboSet("record") if self.recordGlobalHotkey else set()
+
         if self.keyHotkeyList:
+
+            if len(self.keyHotkeyList) == 1:
+                keyName = self.getKeyName(self.keyHotkeyList[0])
+                if isinstance(self.keyHotkeyList[0],keyboard.Key) and keyName in otherSet:
+                    self.statusVar.set(f"Cannot use single <{keyName}> because the other hotkey is using it")
+                    self.setHotkeyMode("failed")
+                    return
+
+
+            hotkey_str = ""
             for i, key in enumerate(self.keyHotkeyList,start=1):
                 #special keys
                 keyName = self.getKeyName(key)
                 if isinstance(key,keyboard.Key):
+                    
                     hotkey_str += f"<{keyName}>"
                 else:
                     hotkey_str += keyName
-                
-                if i < len(self.keyHotkeyList):  # Add + between keys
+                # Add + between keys
+                if i < len(self.keyHotkeyList):  
                     hotkey_str += "+"
             
             # Apply the hotkey
@@ -804,4 +819,5 @@ def main():
     root.mainloop()
 
 if __name__ == '__main__':
+    mp.freeze_support()
     main()
