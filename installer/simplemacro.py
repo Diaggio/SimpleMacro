@@ -1,5 +1,5 @@
-import faulthandler
-faulthandler.enable()
+""" import faulthandler
+faulthandler.enable() """
 
 import tkinter as tk
 import tkinter.ttk as ttk
@@ -431,8 +431,8 @@ class MouseMacro:
             else:
 
                 if listLength == 0:
-                    if self.OS == "darwin" and key == keyboard.Key.shift \
-                        or key == keyboard.Key.shift_l or key == keyboard.Key.shift_r:
+                    if self.OS == "darwin" and (key == keyboard.Key.shift \
+                        or key == keyboard.Key.shift_l or key == keyboard.Key.shift_r):
                         self.statusVar.set("<shift> not allowed on Mac as a hotkey")
                         self.setHotkeyMode("failed")
                     if isinstance(key,keyboard.Key):
@@ -463,8 +463,8 @@ class MouseMacro:
                 if isinstance(self.keyHotkeyList[0],keyboard.Key) and keyName in otherSet:
                     self.statusVar.set(f"Cannot use single <{keyName}> because the other hotkey is using it")
                     self.setHotkeyMode("failed")
+                    return
                 
-                return
 
 
             hotkey_str = ""
@@ -520,20 +520,12 @@ class MouseMacro:
                 #print("key is printable")
                 keyName = key.char
 
-            """ if self.isCaps:
-                keyName = keyName.upper() """
-
             return keyName
             
-      
             #return key.char if key.char is not None else self.vkToChar(key.vk)
         #control keys
         else:
             #print(f"control key {key}")
-            """ if key in self.modifierDisplayMap:
-                return self.modifierDisplayMap[key][0]
-            else:
-                #print(key.value) """
             keyName = str(key).split(".")[-1]
             if '_' in keyName:
                 keyName = keyName.split("_")[0]
